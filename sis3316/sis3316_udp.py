@@ -69,18 +69,24 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 	default_timeout = 0.1	#seconds
 	retry_max_timeout = 100 #ms
 	retry_max_count = 10 
-	bufsz = 4096 		# set this to your ethernet's jumbo-frame size
+	jumbo = 4096 		# set this to your ethernet's jumbo-frame size
 	
 	def __init__ (self, host, port=5768):
 		self.hostname = host
 		self.address = (host, port)
+		
 		sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		sock.bind( ('', port ) )
 		sock.setblocking(0) #guarantee that recv will not block internally
+		#sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) #avoid the TIME_WAIT issue #FIXME: it still relevant?
 		self._sock = sock
 		
 		for parent in self.__class__.__bases__: # all parent classes
-			parent.__init__(self)	
+			parent.__init__(self)
+		
+	def __del__(self):
+		""" Run this manually if you need to close socket."""
+		self._sock.close()
 		
 	@classmethod
 	def __status_err_check(cls,status):
@@ -92,7 +98,7 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 	def cleanup_socket(self):
 		""" Remove all data in the socket. """
 		sock = self._sock
-		bufsz = self.bufsz
+		bufsz = self.jumbo
 		while 1:
 			ready = select.select([sock],[],[], 0.0)
 			if not ready[0]:
@@ -117,7 +123,7 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 			timeout = self.default_timeout
 		
 		sock = self._sock
-		bufsz = self.bufsz
+		bufsz = self.jumbo
 		responce = None
 		
 		if select.select([sock], [], [], timeout)[0]:
@@ -236,10 +242,13 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 				pass
 
 	def open(self):
-		# Enable the link interface.
+		""" Enable the link interface. """
 		self._write_link(SIS3316_INTERFACE_ACCESS_ARBITRATION_CONTROL,0x1)
+		if not self._read_link(SIS3316_INTERFACE_ACCESS_ARBITRATION_CONTROL) & (1<<20): #if own grant bit not set
+			raise IOError("Can't set Grant bit for Link interface")
 	
 	def close(self):
+		""" Disable the link interface. """
 		self._write_link(SIS3316_INTERFACE_ACCESS_ARBITRATION_CONTROL,0x0)
 
 # ----------- Interface  ----------------------
@@ -293,8 +302,9 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 		
 		sock = self._sock
 		packet_sz_bytes = 2
+		bufzs = self.jumbo
 		if select.select([sock], [], [], timeout)[0]:
-			chunk, address = sock.recvfrom(self.bufsz)
+			chunk, address = sock.recvfrom(bufzs)
 			if len(chunk) == packet_sz_bytes:
 				return chunk
 			else:
@@ -318,7 +328,7 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 		
 		sock = self._sock
 		HEADER_SZ_B = 2
-		tempbuf = bytearray(self.bufsz)
+		tempbuf = bytearray(self.jumbo)
 		
 		packet_idx=0
 		bcount = 0
@@ -495,7 +505,7 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 		""" Address {0} does not seem to make sense. """
 	
 	class _SisNoGrantExcept(Sis3316Except):
-		""" sis3316 Link interface has no grant anymore. """
+		""" sis3316 Link interface has no grant anymore. Use open() to request it."""
 		
 	class _SisFifoTimeoutExcept(Sis3316Except):
 		""" sis3316 Access timeout during request (Fifo Empty). """
