@@ -5,14 +5,16 @@ import sys,os
 import argparse
 from time import sleep 
 
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 #~ sys.path.append(os.path.join(os.path.dirname(__file__), './sis3316'))
+import sis3316
 
 
 def spinning_cursor():
     while True:
         #~ for cursor in '|/|\\':
-        for cursor in '.:. ':
+        for cursor in '.:':
             yield cursor
 
 
@@ -20,33 +22,43 @@ def readout_loop(dev, dest, channels, opts = {} ):
 	
 	spinner = spinning_cursor()
 	quiet = dest is sys.stdout # no progressbar if output is redirected
+	total_bytes = 0
 	
 	while True:
-		dev.mem_toggle()
-		
-		if not quiet:
-			sys.stderr.write('\r')
-			sp = next(spinner)  
-		
 		try:
+			dev.mem_toggle()
+			
+			if not quiet:
+				sys.stderr.write('\r') #cursor to pos. 0
+				sp = next(spinner)  
+			
 			for ch in channels:
 				for ret in dev.readout_pipe(ch, dest, 0, opts ):
-					if not quiet: # draw a spinner
+					total_bytes += ret['transfered'] * 4 # words -> bytes
+			
+				if not quiet: # draw a spinner
 						sys.stderr.write(sp)
 						sys.stderr.flush()
 			
+			if not quiet:
+				sys.stderr.write(' %d bytes' % total_bytes)
+					
 		except KeyboardInterrupt:
 			exit(0)
 			
 		except Exception as e:
-			print 'E:', e
+			sys.stderr.write('E: %s' % e)
 		
 		sleep(1)
 
 
 def get_args():
 	""" Parse command line arguments with argparse tool """
-	default_filename = "readout.dat"
+	
+	if sys.stdout.isatty(): # if output is a tty
+			default_filename = "readout.dat"
+	else:
+		default_filename = "-" #stdout
 	
 	# Set the command line arguments
 	parser = argparse.ArgumentParser(description=__doc__)
@@ -59,34 +71,17 @@ def get_args():
 			help="outfile, default is ./readout.dat (or stdout if not a terminal)")
 	
 	# Parse arguments
-	args = parser.get_args()
+	args = parser.parse_args()
 	
 	for x in args.channels:
 		if not 0 <= x <= 15:
 			raise ValueError("%d is not a valid channel number" %x)
 	args.channels = set(args.channels) # deduplicate
 	
-	# Default output files
+	# Defaults
 	if args.file is None:
-		if not sys.stdout.isatty(): # if file not specified and output is not a tty
-			args.file = '-'
-		else:
-			args.file = default_filename
+		args.file = default_filename
 			
-	# Open the file
-	filename = args.file
-	if filename is '-':
-		if not sys.stdout.isatty(): # stdout seems not to be a tty
-			args.file = sys.stdout
-		else:
-			raise ValueError("Are you trying to output binary data to a terminal?")
-	else:
-		if os.path.exists(filename) and os.path.getsize(filename) > 0:
-				raise ValueError("%s exists and not empty. Not going to overwrite it." 
-				" Specify another filename manually." % filename )
-		
-		args.file = open(filename, 'w')
-		
 	return args
 
 
@@ -100,14 +95,24 @@ def main():
 		sys.stdout.write('Err: ' + str(e) + '\n')
 		exit(1)
 		
-	host, port, dest, chans = args.host, args.port, args.file, args.channels
+	host, port, filename, chans = args.host, args.port, args.file, args.channels
 	
+	# Open the file
+	if filename is '-':
+		if not sys.stdout.isatty(): # stdout seems not to be a tty
+			dest = sys.stdout
+		else:
+			raise ValueError("Are you trying to output binary data to a terminal?")
+	else:
+		if not os.path.exists(filename) or os.path.getsize(filename) == 0:
+			dest = open(filename, 'w')
+		else:
+			raise ValueError("%s exists and not empty. Not going to overwrite it." 
+				" Specify another filename manually." % filename )
 	
-	import sis3316
 	dev = sis3316.Sis3316_udp(host, port)
-	
 	dev.open()
-	dev.mem_toggle() #flush device memory to not to readout a large chunk of old data
+	dev.mem_toggle() #flush the device memory to not to read a large chunk of old data
 	
 	readout_loop(dev, dest, chans, opts)
 
