@@ -34,11 +34,17 @@ class Parse:
 	""" Parse an events file, return a single event at once """
 	def __init__(self, filename, fields):
 		self._reader = io.open(filename, 'rb') #not iterable if stdin!, 'seek' and it's friends won't work
+		
+		#warn on a common mistake
 		if self._reader.isatty():
 			raise ValueError('You are trying to read data from a terminal.')
 		
+		#check fieldnames
+		for f in fields:
+			if f not in __fields__:
+				raise ValueError("invalid field name %s."% str(f))
+		
 		self._fields = fields
-			#TODO: check fields are valid
 	
 	def __iter__(self):
 		return self
@@ -94,27 +100,25 @@ class Parse:
 			
 			
 		return data
-			
-			
 	
 	__next__ = next
 	
 
 def main():
 	parser = argparse.ArgumentParser(description=__doc__)
-	parser.add_argument('infile', nargs='?', type=str, default='-', help="raw data file (stdin by default)")
-	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout, help="redirect output to a file")
-	parser.add_argument('-F','--fields', nargs='+', type=str, default=('ts','raw'), help="default is \"--fields ts raw\". Valid field names are: %s." % str(__fields__) )
+	parser.add_argument('infile', nargs='?', type=str, default='-',
+		help="raw data file (stdin by default)")
+	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout,
+		help="redirect output to a file")
+	parser.add_argument('-F','--fields', nargs='+', type=str, default=('raw',),
+		help="default is \"--fields raw\". Valid field names are: %s." % str(__fields__) )
 	args = parser.parse_args()
 	
-	fields = ('ts','raw')
-	
-	if args.infile is '-':
+	if args.infile is '-': #stdin
 		args.infile = sys.stdin.fileno()
-	
+
 	try:
-		p = Parse(args.infile, fields)
-		
+		p = Parse(args.infile, args.fields)
 	except ValueError as e:
 		sys.stderr.write("Err: %s \n" % e)
 		exit(1)
