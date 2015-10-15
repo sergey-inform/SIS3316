@@ -5,6 +5,7 @@ import sys,os
 import argparse
 from struct import unpack
 import io # BufferedReader
+from ctypes import from_buffer_copy, c_uint
 
 
 __fields__ = ('npeak','peak','info',
@@ -49,22 +50,23 @@ class Parse:
 	def __iter__(self):
 		return self
 		
-	def _guess_event_sz(self):
-		""" Try to calculate size of the next event. Return a size or raise ValueError/StopIteration. """
+	def _parse_event(self):
+		""" Try to calculate format of the next event.
+		Return a ctypes format or raise ValueError/StopIteration. """
 		# Since Raw data format is a bit "overoptimized"... 
 		# We don't know event size for channels in each group, and there is no MAW length field,
-		# so it's not easy at all to calculate actual event length looking on data...
+		# so it's not easy to calculate actual event length looking on data...
 		#
 		# Reasonable workaround is to try to find next higher timestamp value, since it changes
-		# only once in 17 seconds (on 250 MHz).
+		# only once in 17 seconds on 250 MHz.
 		
 		
-		return 140
+		pass
 		
 	def _peek_event(self, sz, fields):
-		sz = self._guess_event_sz()
+		pass
 		
-	def _cache_lookup(self, word):
+	def _cache_lookup(self, key):
 		return None
 		
 		
@@ -78,15 +80,16 @@ class Parse:
 		
 		while True:
 			
-			return 42
-			
 			header = reader.peek(4)
 			if len(header) < 4:
-				raise StopIteration #no data
+				if data:
+					return data
+				else:
+					raise StopIteration #no more data
 			
 			chan_fmt = header[0:2]
 			
-			sz = self._cache_lookup(chan_fmt)
+			f = self._cache_lookup(chan_fmt)
 			if not sz:
 				sz = self._guess_event_sz()
 			
