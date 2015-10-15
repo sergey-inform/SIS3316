@@ -5,8 +5,7 @@ import sys,os
 import argparse
 from struct import unpack
 import io # BufferedReader
-from ctypes import from_buffer_copy, c_uint
-
+from ctypes import *
 
 __fields__ = ('npeak','peak','info',
 	'acc1','acc2','acc3','acc4','acc5','acc6','acc7','acc8',
@@ -50,8 +49,9 @@ class Parse:
 	def __iter__(self):
 		return self
 		
-	def _parse_event(self):
+	def _parse_event_format(self, fmt):
 		""" Try to calculate format of the next event.
+		Accept a value of 
 		Return a ctypes format or raise ValueError/StopIteration. """
 		# Since Raw data format is a bit "overoptimized"... 
 		# We don't know event size for channels in each group, and there is no MAW length field,
@@ -60,10 +60,15 @@ class Parse:
 		# Reasonable workaround is to try to find next higher timestamp value, since it changes
 		# only once in 17 seconds on 250 MHz.
 		
+		return None
 		
-		pass
 		
-	def _peek_event(self, sz, fields):
+		
+	def _peek_event(self, format_, fields):
+		
+		if not format_:
+			raise ValueError("no format")
+		
 		pass
 		
 	def _cache_lookup(self, key):
@@ -78,29 +83,38 @@ class Parse:
 		
 		data = []
 		
-		while True:
-			
-			header = reader.peek(4)
-			if len(header) < 4:
-				if data:
-					return data
-				else:
-					raise StopIteration #no more data
-			
-			chan_fmt = header[0:2]
-			
-			f = self._cache_lookup(chan_fmt)
-			if not sz:
-				sz = self._guess_event_sz()
-			
-			try: 
-				evt = self._peek_event(sz, fields)
+		try:
+			while True:
+				print reader.tell()
+				header = reader.peek(4)
+				if len(header) < 4:
+					raise EOFError #no more data
 				
-			except ValueError: #wrong event data
-				#shift a byte
-				continue
+				evt_format = self._cache_lookup(header)
 				
-			
+				try:
+					evt = self._peek_event(evt_format, fields)
+				
+				except ValueError as e: #bad format
+					try:
+						evt_format = self._parse_event_format(header)
+					
+					except ValueError: #bad data
+						reader.read(1) #skip 1 byte
+						continue
+				
+				
+				if evt_format:
+					for field_name, field_type in evt_format._fields_:
+						print field_name#, getattr(evt_format, field_name)
+				
+				
+				
+		except EOFError:
+			if data:
+				return data
+			else:
+				raise StopIteration
 			
 		return data
 	
