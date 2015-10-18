@@ -3,7 +3,7 @@
 
 import sys,os
 import argparse
-from struct import unpack
+from struct import unpack, error as struct_error
 import io # BufferedReader
 import ctypes 
 
@@ -29,11 +29,11 @@ __fields__ = ('npeak','peak','info',
 
 	
 class Parse:
+	""" Parse an events file, return a single event at once """
 	MAX_EVENT_LENGTH = (18 + 1022) * 4 + (65536+65534) * 2 # (hdr+maw_data) * word_sz + (raw+avg) * halfword_sz
 	
-	""" Parse an events file, return a single event at once """
 	def __init__(self, filename, fields):
-		self._reader = io.open(filename, 'rb') #not iterable if stdin!, 'seek' and it's friends won't work
+		self._reader = io.BufferedReader(filename, 'rb') #not iterable if stdin!, 'seek' and it's friends won't work
 		
 		#warn on a common mistake
 		if self._reader.isatty():
@@ -45,6 +45,8 @@ class Parse:
 				raise ValueError("invalid field name %s."% str(f))
 		
 		self._fields = fields
+		
+		self.no = 0 #DELME
 	
 	def __iter__(self):
 		return self
@@ -58,15 +60,19 @@ class Parse:
 		
 		MAX_HDR_LEN = 18 * 4
 		header = self._reader.peek(MAX_HDR_LEN)
+		
+		print ('header', header[0:20].encode('hex'))
+		
 		c_format = [
-				("ts_hi", ctypes.c_int16),
-				("chan", ctypes.c_int, 12),
-				("fmt", ctypes.c_int, 4),
-				("ts_lo1", ctypes.c_int16),
-				("ts_lo2", ctypes.c_int16)]
+				("fmt", ctypes.c_uint, 4),
+				("chan", ctypes.c_uint, 12),
+				("ts_hi", ctypes.c_uint, 16),
+				("ts_lo2", ctypes.c_uint16),
+				("ts_lo1", ctypes.c_uint16),
+				]
 		try:
-			ts_hi, ch_fmt = unpack('<HH', header[0:4] )
-			ch, fmt = ch_fmt >>4, ch_fmt & 0xF
+			ch_fmt,ts_hi = unpack('<HH', header[0:4] )
+			ch, fmt = ch_fmt >>4, (ch_fmt & 0xF)
 			pos = 8 #raw data header position
 			
 			if fmt & 0b1:
@@ -103,7 +109,7 @@ class Parse:
 						])
 			
 			hdr_raw = unpack('<I', header[pos:pos+4] )[0]
-			OxE, fMAW, n_raw = hdr_raw >> 28, bool(hdr_raw & (1<<27)), 2 * (hdr_raw & 0x1FFffFF)
+			OxE, fMAW, n_raw = hdr_raw >> 28,  bool(hdr_raw & (1<<27)),  2 * (hdr_raw & 0x1FFffFF)
 			n_avg = 0
 			
 			if OxE == 0xA: #additional Average Data header
@@ -133,28 +139,43 @@ class Parse:
 				#TODO: look up for the next (timestamp +- 1)
 				pass
 			
-		except IndexError:
-			print('_parse_event_format: Index Error')
-			raise EOF
+		except struct_error:
+			# len(header[slice]) is less then expected
+			raise EOFError
 		
 		# build a ctypes structure class
-		class CtypesStruct(ctypes.Structure):
+		class CtypesStruct(ctypes.LittleEndianStructure):
+			_pack_ = 1 #fields alignment
 			_fields_ = c_format
 		CtypesStruct.__name__ = 'ch' + str(ch)
 		
 		return CtypesStruct
 		
-		
 	def _peek_event(self, format_):
-		
 		if not format_:
 			raise ValueError("no format")
 		
-		return {sz:140}
+		sz = ctypes.sizeof(format_)
+		print ('sz', sz)
+		data = self._reader.peek(sz)
+		
+		print ('len data', len(data))
+		evt = format_.from_buffer_copy(data)
+		
+		evt.sz = sz
+		
+		for f in evt._fields_:
+			print  f[0], getattr(evt, f[0])
+		
+		
+		
+		return evt
 		
 	def _cache_lookup(self, key):
 		return None
-		
+	
+	def _cache_update(self, key, format_):
+		pass
 		
 	def next(self):
 		""" Return events from a continuous redout (in general, from single memory bank), ordered by timestamp.
@@ -163,70 +184,44 @@ class Parse:
 		fields = self._fields
 		
 		data = []
-		evt_format = None
-		prev_ch_fmt = None
+		DATA_MAX_CHUNK = 999
+		fin = False
+		
 	
 		while True:
+			evt = None
+			evt_format = None
+			
 			try:
-				header = reader.peek(4)
-				if len(header) < 4:
-					raise EOFError
+				evt_format = self._parse_event_format()
+				for a in evt_format._fields_:
+					print(a[0], getattr (evt_format, a[0]))
 				
-				ch_fmt = header[2:4]
+				evt = self._peek_event(evt_format)
 				
-				if ch_fmt != prev_ch_fmt: #next channel data, or format has changed
-					if evt_format:
-						# self._cache_update(header, evt_format)
-						pass
-					evt_format = self._cache_lookup(header)
-				
-				try:
-					evt = self._peek_event(evt_format)
-					
-				except ValueError: # evt_format is None, or it doesn't match the data?
-					try:
-						evt_format = self._parse_event_format()
-						continue
-						
-					except ValueError: #can't parse a new format. bad data?
-						reader.read(1) #skip 1 byte, maybe further data is ok
-						print 'bad data' #DELME:
-						continue
-				
-				#OK
-				prev_header = header
-				data.append(evt)
-				reader.read(evt.sz) #move forward
+			except ValueError as e:
+				reader.read(4) #skip 4 bytes, maybe further data is ok
+				print ('skip1 %s' % str(e))
 				continue
 				
-				
-			
-					
-			
 			except EOFError:
+				fin = True
+			
+			if evt:
+				data.append(evt)
+				a = reader.read(evt.sz+4) #move forward
+				#~ print evt['sz']
+			
+			if len(data) > DATA_MAX_CHUNK:
+				fin = True
+			
+			if fin:
 				if data:
 					#TODO: sort data by ts
 					return data
 				else:
 					raise StopIteration
 			
-			
-		print "Err: we should never get here"
-		return data
-			
-				
-				except ValueError as e: 
-					try:
-						
-						
-						#~ print evt_format
-					
-					
-				
-				prev_header = header
-				
-				
-		
 	
 	__next__ = next
 	
@@ -251,7 +246,8 @@ def main():
 		exit(1)
 	
 	for events in p:
-		print(events)
+		pass
+		#~ print(events)
 	
 	
 if __name__ == "__main__":
