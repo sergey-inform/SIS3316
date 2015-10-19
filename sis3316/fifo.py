@@ -90,7 +90,7 @@ class Sis3316(object):
 		
 		self.write(reg_addr, cmd) #Prepare Data transfer logic
 		#~ self._write_fifo(fifo_addr, datalist)
-		self._fifo_transfer_reset(grp_no) #cleanup
+		#~ self._fifo_transfer_reset(grp_no) #cleanup
 	
 	def _fifo_transfer_reset(self, grp_no):
 		""" Reset memory transfer logic. """
