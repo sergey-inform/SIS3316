@@ -30,6 +30,7 @@ class PeekableObject(object):
 	def __init__(self, fileobj):
 		self.fileobj = fileobj
 		self.buf = b''
+		self.pos = 0
 		
 	def peek(self, size=None):
 
@@ -45,6 +46,7 @@ class PeekableObject(object):
 		return self.buf[:sz]
 			
 	def skip(self, size):
+		self.pos +=size
 		self.buf = self.buf[size:]
 
 	def read(self, size=None):
@@ -200,18 +202,30 @@ class Parse:
 		if not format_:
 			raise ValueError("no format")
 		
-		sz = ctypes.sizeof(format_)
+		sz = ctypes.sizeof(format_) 
 		#~ print ('sz', sz)
-		data = self._reader.peek(sz+1) #peek sz
+		data = self._reader.peek(sz + 16)  #TODO: refactor
+		
+		#TODO: check data size
 		
 		print ('_peek_event len data', len(data))
 		evt = format_.from_buffer_copy(data)
 		
 		evt.sz = sz - 4 #TODO: refactor
 		
+		#check 0 blocks
+		for a in ['acc1','acc2','acc3','acc4','acc5','acc6','acc7','acc8',
+	'maw_max','maw_after_trig','maw_before_trig']:
+			if hasattr(evt, a) and getattr(evt, a) >= (1<<28):
+				raise ValueError("wrong value of %s" % a)
+		
+		for f in evt._fields_:
+			print  f[0], getattr(evt, f[0])
+		
+		
 		if abs(evt.next_ts_hi - evt.ts_hi ) > 1:
 			# event format seems to be broken
-			raise ValueError("wrong fmt")
+			raise ValueError("wrong next ts")
 		
 		return evt
 		
@@ -244,14 +258,15 @@ class Parse:
 					#~ print(a[0], getattr (evt_format, a[0]))
 				
 				evt = self._peek_event(evt_format)
-				for f in evt._fields_:
-					print  f[0], getattr(evt, f[0])
+				
 					
 				print('-'*20) #DELME:
 				
 			except ValueError as e:
+				print ('skip4 %s, pos:%d, data:%s' % (str(e), reader.pos, reader.peek(26).encode('hex')) )
 				reader.skip(4) #skip 4 bytes, maybe further data is ok
-				print ('skip4 %s' % str(e))
+				
+				
 				continue
 				
 			except EOFError:
