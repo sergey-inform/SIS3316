@@ -4,7 +4,7 @@
 import sys,os
 import argparse
 from struct import unpack, error as struct_error
-import io # BufferedReader
+import io 
 import ctypes 
 
 __fields__ = ('npeak','peak','info',
@@ -22,32 +22,58 @@ __fields__ = ('npeak','peak','info',
 #from operator import itemgetter
 #newlist = sorted(list_to_be_sorted, key=itemgetter('name')) 
 #io.BufferedReader
-#peek([n]), read, read
-#reader = io.open(sys.stdin.fileno())
 
-# parse
-
+class PeekableObject(object):
+	""" Make it possible to read same data twice. """
+	#TODO: check if some optimization is needed
 	
+	def __init__(self, fileobj):
+		self.fileobj = fileobj
+		self.buf = b''
+		
+	def peek(self, size=None):
+
+		if size is None:
+			self.buf += self.fileobj.read()
+			return self.buf
+		
+		if size > len(self.buf):
+			contents = self.fileobj.read(size - len(self.buf))
+			self.buf += contents
+		
+		sz = min(len(self.buf), size)
+		return self.buf[:sz]
+			
+	def skip(self, size):
+		self.buf = self.buf[size:]
+
+	def read(self, size=None):
+		contents = self.peek(size)
+		self.skip(size)
+		return contents
+		
+
 class Parse:
 	""" Parse an events file, return a single event at once """
 	MAX_EVENT_LENGTH = (18 + 1022) * 4 + (65536+65534) * 2 # (hdr+maw_data) * word_sz + (raw+avg) * halfword_sz
 	
 	def __init__(self, filename, fields):
-		self._reader = io.BufferedReader(filename, 'rb') #not iterable if stdin!, 'seek' and it's friends won't work
-		
-		#warn on a common mistake
-		if self._reader.isatty():
-			raise ValueError('You are trying to read data from a terminal.')
 		
 		#check fieldnames
 		for f in fields:
 			if f not in __fields__:
 				raise ValueError("invalid field name %s."% str(f))
-		
 		self._fields = fields
 		
-		self.no = 0 #DELME
-	
+		#open file
+		fobj = open(filename, 'rb')
+		
+		#warn on a common mistake
+		if fobj.isatty():
+			raise ValueError('You are trying to read data from a terminal.')
+		
+		self._reader = PeekableObject(fobj)
+		
 	def __iter__(self):
 		return self
 		
@@ -61,7 +87,7 @@ class Parse:
 		MAX_HDR_LEN = 18 * 4
 		header = self._reader.peek(MAX_HDR_LEN)
 		
-		print ('header', header[0:20].encode('hex'))
+		print ('_parse_event_format header', header[0:20].encode('hex'))
 		
 		c_format = [
 				("fmt", ctypes.c_uint, 4),
@@ -110,6 +136,8 @@ class Parse:
 			
 			hdr_raw = unpack('<I', header[pos:pos+4] )[0]
 			OxE, fMAW, n_raw = hdr_raw >> 28,  bool(hdr_raw & (1<<27)),  2 * (hdr_raw & 0x1FFffFF)
+			c_format.append( ('hdr_raw', ctypes.c_uint32))
+			
 			n_avg = 0
 			
 			if OxE == 0xA: #additional Average Data header
@@ -118,6 +146,8 @@ class Parse:
 				
 				if OxE != 0xE: 
 					raise ValueError('no 0xE after 0xA')
+				
+				c_format.append( ('hdr_avg', ctypes.c_uint32))
 		
 			elif OxE != 0xE:
 				raise ValueError('no 0xE')
@@ -139,13 +169,25 @@ class Parse:
 				#TODO: look up for the next (timestamp +- 1)
 				pass
 			
+			
+			# Add a header of the next event
+			c_format.extend([
+				("next_fmt", ctypes.c_uint, 4),
+				("next_chan", ctypes.c_uint, 12),
+				("next_ts_hi", ctypes.c_uint, 16),
+				])
+				
+			#TODO: refactor
+			
+			
+			
 		except struct_error:
-			# len(header[slice]) is less then expected
+			# occures than len(header[slice]) is less then expected
 			raise EOFError
 		
 		# build a ctypes structure class
 		class CtypesStruct(ctypes.LittleEndianStructure):
-			_pack_ = 1 #fields alignment
+			_pack_ = 1 #align bitfields without gaps
 			_fields_ = c_format
 		CtypesStruct.__name__ = 'ch' + str(ch)
 		
@@ -156,18 +198,17 @@ class Parse:
 			raise ValueError("no format")
 		
 		sz = ctypes.sizeof(format_)
-		print ('sz', sz)
-		data = self._reader.peek(sz)
+		#~ print ('sz', sz)
+		data = self._reader.peek(sz+1) #peek sz
 		
-		print ('len data', len(data))
+		print ('_peek_event len data', len(data))
 		evt = format_.from_buffer_copy(data)
 		
-		evt.sz = sz
+		evt.sz = sz - 4 #TODO: refactor
 		
-		for f in evt._fields_:
-			print  f[0], getattr(evt, f[0])
-		
-		
+		if abs(evt.next_ts_hi - evt.ts_hi ) > 1:
+			# event format seems to be broken
+			raise ValueError("wrong fmt")
 		
 		return evt
 		
@@ -194,14 +235,20 @@ class Parse:
 			
 			try:
 				evt_format = self._parse_event_format()
-				for a in evt_format._fields_:
-					print(a[0], getattr (evt_format, a[0]))
+				
+				#DELME:
+				#~ for a in evt_format._fields_:
+					#~ print(a[0], getattr (evt_format, a[0]))
 				
 				evt = self._peek_event(evt_format)
+				for f in evt._fields_:
+					print  f[0], getattr(evt, f[0])
+					
+				print('-'*20) #DELME:
 				
 			except ValueError as e:
-				reader.read(4) #skip 4 bytes, maybe further data is ok
-				print ('skip1 %s' % str(e))
+				reader.skip(4) #skip 4 bytes, maybe further data is ok
+				print ('skip4 %s' % str(e))
 				continue
 				
 			except EOFError:
@@ -209,8 +256,7 @@ class Parse:
 			
 			if evt:
 				data.append(evt)
-				a = reader.read(evt.sz+4) #move forward
-				#~ print evt['sz']
+				reader.skip(evt.sz) #move forward
 			
 			if len(data) > DATA_MAX_CHUNK:
 				fin = True
