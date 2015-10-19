@@ -66,7 +66,10 @@ class Parse:
 		self._fields = fields
 		
 		#open file
-		fobj = open(filename, 'rb')
+		if filename is '-':
+			fobj = sys.stdin
+		else:
+			fobj = open(filename, 'rb')
 		
 		#warn on a common mistake
 		if fobj.isatty():
@@ -282,9 +285,6 @@ def main():
 		help="default is \"--fields raw\". Valid field names are: %s." % str(__fields__) )
 	args = parser.parse_args()
 	
-	if args.infile is '-': #stdin
-		args.infile = sys.stdin.fileno()
-
 	try:
 		p = Parse(args.infile, args.fields)
 	except ValueError as e:
