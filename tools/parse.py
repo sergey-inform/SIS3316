@@ -1,11 +1,10 @@
 #!/usr/bin/env python
-''' Parse SIS3316 ADC raw (binary) data. 
-    
-    Bytes which doesn't look like ADC data will be skipped.
-    
-    @author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
-    @license: GPLv2
+''' Parse SIS3316 ADC raw (binary) data.
+	Bytes which doesn't look like ADC data will be skipped.
 '''
+# Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
+# License: GPLv2
+
 
 import sys,os
 import argparse

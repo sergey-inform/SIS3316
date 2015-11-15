@@ -45,18 +45,35 @@ Tools
 -----
 The tools directory contains some ready-to-use scripts for sis3316 to perform configuration, readout and some basic data analysis. They were made for the cosmics tests of the PANDA "Shaslik" calorimeter prototype (the work was supported by a grant from the [“FAIR-Russia Research Centre”](http://frrc.itep.ru/) in 2015). 
    
-**readout.py** -- perform a device readout, write raw (binary) data to stdout or to a file.
+**readout.py** -- perform a device readout, write raw data to the binary files (a file per channel).
 
-```
-./tools/readout.py 10.0.0.1 1234  -f run01.dat
-:::::::......... 299040 bytes
 
-hint: use pipeview to watch progress: 
-./tools/readout.py 10.0.0.1 1234 | pv > run02.dat
- 1,11MB 0:00:34 [  49kB/s] [  <=>			]
+   
+Each readout operation preceeded by a header:
 ```
-   
-   
+| AAA<a>    |  nSpill(8) |
+| x(4)| size in words(28)|
+
+a=1 -- header format 
+nSpill -- sequential number of readout
+size in words -- a size of data in the bank
+x -- reserved
+```
+A stack of tools:
+The next one use the previous ones.
+
+* readout
+* readout-pack
+* parse  (data-> ts+features+waveforms) order by ts, ts rollover.
+* +parse-unpack -- read a packed ADC data stream, parse events and order them by ts
+* integrate <file> --ped= --len= -> events (text) ts, ch, val, ped, dped
+* +scope <dev/file> -> gui with waveforms and histogram
+----
+* coinc <textfiles> -> coinc stats
+* trig  <textfiles> <channels> -> events (text)
+* hist <events file> --bins --range --bin-count => histogram.txt
+* fit --gauss --kern --landau <events file> => val, err, khi2
+
 Scope
 -----
 The Scope contains a GUI to use SIS3316 as a 16-channel digital oscilloscope.
