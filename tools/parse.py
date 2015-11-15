@@ -263,11 +263,11 @@ class Parse:
 		evt.sz = sz
 		
 		#check 0xE
-		if (evt.hdr_raw >> 28) != 0xE: #don't have 0xE flag in header
+		if (evt.hdr_raw >> 28) != 0xE: #don't have 0xE flag in raw header
 			if evt.hdr_raw == 0xA and \
 					hasattr(evt, 'hdr_avg') and \
 					(getattr(evt, 'hdr_avg') >> 28) != 0xE:
-				#but have average header, and their flags are 0xA and 0xE
+				#...but have average header, and flags are 0xA and 0xE
 				pass
 			else:
 				raise ValueError('0xE')
