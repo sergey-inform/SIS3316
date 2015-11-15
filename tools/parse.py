@@ -76,7 +76,7 @@ class Parse:
 			if f not in __fields__:
 				raise ValueError("invalid field name %s."% str(f))
 		self._fields = fields
-		
+		self._format = None
 			
 		#warn on a common mistake
 		if fileobj.isatty():
@@ -86,43 +86,50 @@ class Parse:
 	
 	def __iter__(self):
 		return self
+		
+	#~ def _cache_lookup(self, key):
+		#~ return self._format[key]
+	#~ 
+	#~ def _cache_update(self, key, format_):
+		#~ self._format[key] = format_
 	
 	def next(self):
 		""" Return events from a continuous redout (in general, from single memory bank), ordered by timestamp.
 		When events are rare, consecutive readouts could be merged. """
 		reader = self._reader
 		fields = self._fields
+		format_ = self._format
 		
 		while True: # until next event parsed successfully or EOF 
 			evt = None
-			evt_format = None
+						
+			#TODO: parse two events, check timestamps
 			
 			try:
-				evt_format = self._parse_next()
+				if format_:
+					evt = self._peek_next(format_)
+				else:
+					self._format = self._parse_next()
+					evt = self._peek_next(self._format)
 				
-				#TODO: add format cache
-				#TODO: parse two events, check timestamps
-				
-				if debug:	
-					sys.stderr.write( ', '.join( [f[0] for f in evt_format._fields_] ) + '\n' )
-				
-				evt = self._peek_next(evt_format)
+				#~ if debug:	
+					#~ sys.stderr.write( ', '.join( [f[0] for f in evt_format._fields_] ) + '\n' )
 				
 			except ValueError as e:
 				if debug:
 					sys.stderr.write('skip4 %s, pos:%d, data:%s\n' % (str(e), reader.pos, reader.peek(26).encode('hex')) )
 				
-				reader.skip(4) #skip 4 bytes, maybe further data is ok
-				continue
+				if format_: #wrong format?
+					format_ = None
+					continue
+				else: #wrong data?
+					reader.skip(4) #skip 4 bytes, maybe further data is ok
+					continue
 				
 			except EOFError:
 				raise StopIteration
 			
 			if evt:
-				if debug:
-					sys.stderr.write( 'size:%d\n' % evt.sz)
-					sys.stderr.write( '\n')
-				
 				reader.skip(evt.sz) #move forward
 				return evt
 			else:
