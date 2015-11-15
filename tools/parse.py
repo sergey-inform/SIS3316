@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-''' Parse sis3316 raw (binary) data stream. 
+''' Parse SIS3316 ADC raw (binary) data. 
     
     Bytes which doesn't look like ADC data will be skipped.
     
@@ -65,23 +65,56 @@ class Parse:
 	
 	Return next event if any or raise StopIteration if no more events.                              
 	'''
-	def __init__(self, fileobj, fields=('ts', 'raw') ):
+	def __init__(self, fileobj, fields=('raw',) ):
 		#check fieldnames
 		for f in fields:
 			if f not in __fields__:
 				raise ValueError("invalid field name %s."% str(f))
 		self._fields = fields
 		
-		#open file
-		if filename is '-':
-			fobj = sys.stdin
-		else:
-			fobj = open(filename, 'rb')
-		
+			
 		#warn on a common mistake
-		if fobj.isatty():
+		if fileobj.isatty():
 			raise ValueError('You are trying to read data from a terminal.')
 		
-		self._reader = PeekableObject(fobj)
+		self._reader = PeekableObject(fileobj)
 
+
+
+def main():
+	parser = argparse.ArgumentParser(description=__doc__)
+	parser.add_argument('infile', nargs='?', type=str, default='-',
+		help="raw data file (stdin by default)")
+	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout,
+		help="redirect output to a file")
+	parser.add_argument('-F','--fields', nargs='+', type=str, default=('raw',),
+		help="default is \"--fields raw\". Valid field names are: %s." % str(__fields__) )
+	args = parser.parse_args()
 	
+
+	outfile, fields =  args.outfile, args.fields
+	
+	if args.infile == '-':
+		infile = sys.stdin
+		
+	else:
+		try:
+			infile = io.open(args.infile, 'rb')
+		except IOError as e:
+			sys.stderr.write('Err: ' + e.strerror+': "' + e.filename +'"\n')
+			exit(e.errno)
+			
+	try:
+		p = Parse(infile, fields)
+		
+	except ValueError as e:
+		sys.stderr.write("Err: %s \n" % e)
+		exit(1)
+	
+	for events in p:
+		pass
+		#~ print(events)
+	
+	
+if __name__ == "__main__":
+    main()
