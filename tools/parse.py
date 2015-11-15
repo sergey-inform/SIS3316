@@ -66,7 +66,9 @@ class PeekableObject(object):
 		return contents
 
 class Parse:
-	MAX_EVENT_LENGTH = (18 + 1022) * 4 + (65536+65534) * 2 # (hdr+maw_data) * word_sz + (raw+avg) * halfword_sz
+	MAX_RAW = 65536
+	MAX_AVG = 65534
+	MAX_EVENT_LENGTH = (18 + 1022) * 4 + (MAX_RAW + MAX_AVG) * 2 # (hdr+maw_data) * word_sz + (raw+avg) * halfword_sz
 	
 	'''
 	Get a fileobject and a list of fields to parse.
@@ -206,7 +208,7 @@ class Parse:
 			
 			n_avg = 0
 			
-			if n_raw > self.MAX_EVENT_LENGTH:
+			if n_raw > self.MAX_RAW:
 				raise ValueError('n_raw is more than MAX_EVENT_LENGTH')
 			
 			if OxE == 0xA: #additional Average Data header
