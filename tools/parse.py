@@ -11,8 +11,10 @@ import argparse
 from struct import unpack, error as struct_error
 import io 
 import ctypes 
+import signal
 
 debug = False #global debug messages
+nevents = 0 #number of events
 
 __fields__ = (
 	'npeak','peak','info',
@@ -62,7 +64,6 @@ class PeekableObject(object):
 		self.skip(size)
 		return contents
 
-
 class Parse:
 	'''
 	Get a fileobject and a list of fields to parse.
@@ -110,19 +111,20 @@ class Parse:
 				else:
 					self._format = self._parse_next()
 					evt = self._peek_next(self._format)
+					
+					if debug:	
+						print( ', '.join( [f[0] for f in self._format._fields_] ) )
 				
-				#~ if debug:	
-					#~ sys.stderr.write( ', '.join( [f[0] for f in evt_format._fields_] ) + '\n' )
 				
 			except ValueError as e:
 				if debug:
-					sys.stderr.write('skip4 %s, pos:%d, data:%s\n' % (str(e), reader.pos, reader.peek(26).encode('hex')) )
+					print('skip %s, pos:%d, data:%s' % (str(e), reader.pos, reader.peek(26).encode('hex')) )
 				
 				if format_: #wrong format?
 					format_ = None
 					continue
 				else: #wrong data?
-					reader.skip(4) #skip 4 bytes, maybe further data is ok
+					reader.skip(1) #skip a byte, maybe further data is ok
 					continue
 				
 			except EOFError:
@@ -147,7 +149,7 @@ class Parse:
 		header = self._reader.peek(MAX_HDR_LEN)
 		
 		if debug:
-			sys.stderr.write('header: %s \n' % header[0:20].encode('hex'))
+			print('header: %s' % header[0:20].encode('hex'))
 		
 		c_format = [
 				("fmt", ctypes.c_uint, 4),
@@ -260,6 +262,16 @@ class Parse:
 		evt = format_.from_buffer_copy(data) #raises ValueError if not enougth data
 		evt.sz = sz
 		
+		#check 0xE
+		if (evt.hdr_raw >> 28) != 0xE: #don't have 0xE flag in header
+			if evt.hdr_raw == 0xA and \
+					hasattr(evt, 'hdr_avg') and \
+					(getattr(evt, 'hdr_avg') >> 28) != 0xE:
+				#but have average header, and their flags are 0xA and 0xE
+				pass
+			else:
+				raise ValueError('0xE')
+		
 		#check 0 blocks
 		for a in ['acc1','acc2','acc3','acc4','acc5','acc6','acc7','acc8',
 	'maw_max','maw_after_trig','maw_before_trig']:
@@ -269,7 +281,17 @@ class Parse:
 		return evt
 	
 	__next__ = next
+
+
+def fin(signal=None, frame=None):
+	global nevents
 	
+	if signal == 2:
+		print('\nYou pressed Ctrl+C!')
+
+	print("%d events found" % nevents)
+	sys.exit(0)	
+
 	
 def main():
 	parser = argparse.ArgumentParser(description=__doc__)
@@ -285,7 +307,7 @@ def main():
 
 	outfile, fields =  args.outfile, args.fields
 	
-	global debug
+	global debug, nevents
 	debug = args.debug
 	
 	if args.infile == '-':
@@ -306,12 +328,13 @@ def main():
 		sys.stderr.write("Err: %s \n" % e)
 		exit(1)
 	
+	signal.signal(signal.SIGINT, fin)
 	nevents = 0
 	for event in p:
 		nevents += 1
-	
-	print("%d events found" % nevents)
-	
+		if debug and (nevents % 100 == 0):
+			print('events:%d' %nevents)
+	fin()
 	
 if __name__ == "__main__":
     main()
