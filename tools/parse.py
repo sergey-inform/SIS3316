@@ -295,7 +295,7 @@ def fin(signal=None, frame=None):
 	if signal == 2:
 		print('\nYou pressed Ctrl+C!')
 
-	print("\t\t\t%d events found\t" % nevents)
+	print("%d events found" % nevents)
 	sys.exit(0)	
 
 	
