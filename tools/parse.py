@@ -341,8 +341,8 @@ def main():
 	nevents = 0
 	for event in p:
 		nevents += 1
-		if debug and (nevents % 100 == 0):
-			print('events:%d' %nevents)
+		if debug and (nevents % 100000 == 0):
+			print('events: %d' %nevents)
 		
 		#~ for a in event._fields_:
 			#~ print a, getattr(event, a[0])
