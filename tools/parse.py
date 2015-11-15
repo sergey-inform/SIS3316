@@ -13,6 +13,8 @@ from struct import unpack, error as struct_error
 import io 
 import ctypes 
 
+debug = False #global debug messages
+
 __fields__ = (
 	'npeak','peak','info',
 	'acc1','acc2','acc3','acc4','acc5','acc6','acc7','acc8',
@@ -97,13 +99,19 @@ class Parse:
 			
 			try:
 				evt_format = self._parse_next()
-				#DELME:
-				#~ for a in evt_format._fields_:
-					#~ print(a[0], getattr (evt_format, a[0]))
+				
+				#TODO: add format cache
+				#TODO: parse two events, check timestamps
+				
+				if debug:	
+					sys.stderr.write( ', '.join( [f[0] for f in evt_format._fields_] ) + '\n' )
+				
 				evt = self._peek_next(evt_format)
 				
 			except ValueError as e:
-				print ('skip4 %s, pos:%d, data:%s' % (str(e), reader.pos, reader.peek(26).encode('hex')) )
+				if debug:
+					sys.stderr.write('skip4 %s, pos:%d, data:%s\n' % (str(e), reader.pos, reader.peek(26).encode('hex')) )
+				
 				reader.skip(4) #skip 4 bytes, maybe further data is ok
 				continue
 				
@@ -111,6 +119,10 @@ class Parse:
 				raise StopIteration
 			
 			if evt:
+				if debug:
+					sys.stderr.write( 'size:%d\n' % evt.sz)
+					sys.stderr.write( '\n')
+				
 				reader.skip(evt.sz) #move forward
 				return evt
 			else:
@@ -128,7 +140,8 @@ class Parse:
 		MAX_HDR_LEN = 18 * 4
 		header = self._reader.peek(MAX_HDR_LEN)
 		
-		print ('_parse_event_format header', header[0:20].encode('hex'))
+		if debug:
+			sys.stderr.write('header: %s \n' % header[0:20].encode('hex'))
 		
 		c_format = [
 				("fmt", ctypes.c_uint, 4),
@@ -260,13 +273,18 @@ def main():
 		help="redirect output to a file")
 	parser.add_argument('-F','--fields', nargs='+', type=str, default=('raw',),
 		help="default is \"--fields raw\". Valid field names are: %s." % str(__fields__) )
+	parser.add_argument('--debug', action='store_true')
 	args = parser.parse_args()
 	
 
 	outfile, fields =  args.outfile, args.fields
 	
+	global debug
+	debug = args.debug
+	
 	if args.infile == '-':
 		infile = sys.stdin
+		
 		
 	else:
 		try:
@@ -282,10 +300,11 @@ def main():
 		sys.stderr.write("Err: %s \n" % e)
 		exit(1)
 	
+	nevents = 0
 	for event in p:
-		for f in event._fields_:
-			print  f[0], getattr(event, f[0])
-		print len(event.raw)
+		nevents += 1
+	
+	print("%d events found" % nevents)
 	
 	
 if __name__ == "__main__":
