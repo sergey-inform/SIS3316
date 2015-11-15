@@ -17,6 +17,7 @@ debug = False #global debug messages
 nevents = 0 #number of events
 
 __fields__ = (
+	'chan',
 	'npeak','peak','info',
 	'acc1','acc2','acc3','acc4','acc5','acc6','acc7','acc8',
 	'maw_max','maw_after_trig','maw_before_trig',
@@ -65,33 +66,32 @@ class PeekableObject(object):
 		return contents
 
 class Parse:
+	MAX_EVENT_LENGTH = (18 + 1022) * 4 + (65536+65534) * 2 # (hdr+maw_data) * word_sz + (raw+avg) * halfword_sz
+	
 	'''
 	Get a fileobject and a list of fields to parse.
 	
 	Return next event if any or raise StopIteration if no more events.                              
 	'''
-	def __init__(self, fileobj, fields=('raw',) ):
+	def __init__(self, fileobj, fields=('chan', 'raw') ):
 		#check fieldnames
 		for f in fields:
 			if f not in __fields__:
 				raise ValueError("invalid field name %s."% str(f))
 		self._fields = fields
-		self._format = None
+		self._format = None #cached format
+		self._last_evt = None #cached last event
 			
 		#warn on a common mistake
 		if fileobj.isatty():
 			raise ValueError('You are trying to read data from a terminal.')
 		
 		self._reader = PeekableObject(fileobj)
+		
 	
 	def __iter__(self):
 		return self
-		
-	#~ def _cache_lookup(self, key):
-		#~ return self._format[key]
-	#~ 
-	#~ def _cache_update(self, key, format_):
-		#~ self._format[key] = format_
+
 	
 	def next(self):
 		""" Return events from a continuous redout (in general, from single memory bank), ordered by timestamp.
@@ -99,6 +99,9 @@ class Parse:
 		reader = self._reader
 		fields = self._fields
 		format_ = self._format
+		
+		if self._last_evt:
+			reader.skip(self._last_evt.sz) #move forward
 		
 		while True: # until next event parsed successfully or EOF 
 			evt = None
@@ -131,7 +134,7 @@ class Parse:
 				raise StopIteration
 			
 			if evt:
-				reader.skip(evt.sz) #move forward
+				self._last_evt = evt
 				return evt
 			else:
 				return None
@@ -202,6 +205,9 @@ class Parse:
 			c_format.append( ('hdr_raw', ctypes.c_uint32))
 			
 			n_avg = 0
+			
+			if n_raw > self.MAX_EVENT_LENGTH:
+				raise ValueError('n_raw is more than MAX_EVENT_LENGTH')
 			
 			if OxE == 0xA: #additional Average Data header
 				hdr_avg = unpack('<I', header[pos+4:pos+8] )[0]
@@ -289,7 +295,7 @@ def fin(signal=None, frame=None):
 	if signal == 2:
 		print('\nYou pressed Ctrl+C!')
 
-	print("%d events found" % nevents)
+	print("\t\t\t%d events found\t" % nevents)
 	sys.exit(0)	
 
 	
@@ -299,13 +305,14 @@ def main():
 		help="raw data file (stdin by default)")
 	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout,
 		help="redirect output to a file")
-	parser.add_argument('-F','--fields', nargs='+', type=str, default=('raw',),
-		help="default is \"--fields raw\". Valid field names are: %s." % str(__fields__) )
+	#~ parser.add_argument('-F','--fields', nargs='+', type=str, default=('chan','raw',),
+		#~ help="default is \"--fields raw\". Valid field names are: %s." % str(__fields__) )
 	parser.add_argument('--debug', action='store_true')
 	args = parser.parse_args()
 	
 
-	outfile, fields =  args.outfile, args.fields
+	#~ outfile, fields =  args.outfile, args.fields
+	outfile =  args.outfile
 	
 	global debug, nevents
 	debug = args.debug
@@ -322,7 +329,7 @@ def main():
 			exit(e.errno)
 			
 	try:
-		p = Parse(infile, fields)
+		p = Parse(infile)
 		
 	except ValueError as e:
 		sys.stderr.write("Err: %s \n" % e)
@@ -334,6 +341,9 @@ def main():
 		nevents += 1
 		if debug and (nevents % 100 == 0):
 			print('events:%d' %nevents)
+		
+		#~ for a in event._fields_:
+			#~ print a, getattr(event, a[0])
 	fin()
 	
 if __name__ == "__main__":
