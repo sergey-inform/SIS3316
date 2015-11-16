@@ -295,9 +295,9 @@ def fin(signal=None, frame=None):
 	global nevents
 	
 	if signal == 2:
-		print('\nYou pressed Ctrl+C!')
+		sys.stderr.write('\nYou pressed Ctrl+C!\n')
 
-	print("%d events found" % nevents)
+	sys.stderr.write("%d events found\n" % nevents)
 	sys.exit(0)	
 
 	
@@ -307,22 +307,17 @@ def main():
 		help="raw data file (stdin by default)")
 	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout,
 		help="redirect output to a file")
-	#~ parser.add_argument('-F','--fields', nargs='+', type=str, default=('chan','raw',),
-		#~ help="default is \"--fields raw\". Valid field names are: %s." % str(__fields__) )
 	parser.add_argument('--debug', action='store_true')
 	args = parser.parse_args()
 	
 
-	#~ outfile, fields =  args.outfile, args.fields
-	outfile =  args.outfile
-	
 	global debug, nevents
+
 	debug = args.debug
-	
+	outfile =  args.outfile
+
 	if args.infile == '-':
 		infile = sys.stdin
-		
-		
 	else:
 		try:
 			infile = io.open(args.infile, 'rb')
@@ -338,6 +333,7 @@ def main():
 		exit(1)
 	
 	signal.signal(signal.SIGINT, fin)
+	
 	nevents = 0
 	for event in p:
 		nevents += 1
