@@ -17,7 +17,6 @@ from integrate import integrate
 import matplotlib	#TODO: put this inside GUI init
 matplotlib.use('WXAgg')
 from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 
 from matplotlib.backends.backend_wxagg import \
 	FigureCanvasWxAgg as FigCanvas, \
@@ -157,6 +156,8 @@ class WaveformPanel(PlotPanel):
 		self.axes.set_axis_bgcolor('black')
 		self.axes.set_title('Signal Waveform', size=12)
 		
+		self.graph = self.axes.plot([],[], '.-')[0]
+		
 		super(WaveformPanel, self).__init__(parent, self.figure)
 		
 		# Controls
@@ -171,25 +172,25 @@ class WaveformPanel(PlotPanel):
 		csizer.AddSpacer(10)
 		self.sizer.Add(csizer, 0, flag=wx.EXPAND)
 		
-	def DrawWaveform(self, event_data):
+	def DrawWaveform(self, ax, event_data):
 		""" Plot waveform."""
 		data = event_data.raw
-		ax = self.axes
+		#~ plot = self.plot
 		
+		#~ plt.ion()
 		
 		if data:
 			ydata = [d for d in data]
 			xdata = range(0,len(data))
 			
-			#~ print xdata, ydata
+			self.graph.set_xdata(xdata)
+			self.graph.set_ydata(data)
+			ax.set_xlim(0,len(data))
+			#~ ax.set_ylim(min(data),max(data))
 			
-			plot = ax.plot(xdata,ydata, '.-')
-			#~ plot = ax.plot([],[], '.-')[0]
-			#~ self.canvas.ion()
-			self.canvas.draw()
-		
+			self.canvas.draw_idle()
 
-		
+			
 class HistPanel(PlotPanel):
 	def __init__(self, parent):
 		
@@ -232,7 +233,7 @@ class MainFrame(wx.Frame):
 	
 	def OnDataReady(self, event):
 		print('data!')
-		self.waveform.DrawWaveform(event.data)
+		self.waveform.DrawWaveform(self.waveform.axes, event.data)
 		self.ready=True
 	
 	def create_main_panel(self):
