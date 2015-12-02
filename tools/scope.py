@@ -10,6 +10,8 @@ import wx
 import time
 import io
 from threading import *
+import math #round
+import numpy as np
 
 from parse import Parse
 from integrate import integrate
@@ -24,7 +26,7 @@ from matplotlib.backends.backend_wxagg import \
 
 
 WINDOW_TITLE = "SIS3316 ACD data waveforms viewer"
-TIMER_RATE = 500 #milliseconds
+TIMER_RATE = 2500 #milliseconds
 
 # Button definitions
 ID_PAUSE = wx.NewId()
@@ -32,6 +34,7 @@ ID_PAUSE = wx.NewId()
 # Globals
 args = None # the argparse.Namespace() object, config. options
 events = [] #TODO: refactor
+hist = []
 
 # Define notification event for thread completion
 EVT_DATA_READY_ID= wx.NewId()
@@ -60,7 +63,7 @@ class EventParser(Thread):
 		self.start() # start the thread on it's creation
 
 	def run(self):
-		global args, events
+		global args, events, hist
 		p = Parse(args.infile, ('chan','raw') )
 		data = None
 		
@@ -84,6 +87,11 @@ class EventParser(Thread):
 				wx.PostEvent(self._notify_window, DataReadyEvent(data))
 			
 			events.append(data)
+			
+			
+			#TODO: if hist:
+			e_ts, e_chan, e_summ, e_baseline, e_dbaseline =  integrate(data)[0:5]
+			hist.append(e_summ)
 		
 				
 	def abort(self):
@@ -121,6 +129,7 @@ class BaselineCtrl(wx.SpinCtrl):
 		global args
 		
 		kwargs['initial'] = args.baseline
+		kwargs['size'] = wx.Size(60, -1)
 		wx.SpinCtrl.__init__(self, *args_, **kwargs)
 		
 		self.Bind(wx.EVT_SPIN, self.OnSpin)
@@ -151,17 +160,23 @@ class WaveformPanel(PlotPanel):
 		global args
 		
 		dpi = 100
-		self.figure = Figure((4.0, 4.0), dpi=dpi)
+		self.figure = Figure((2.0, 2.0), dpi=dpi)
 		self.axes = self.figure.add_subplot(111)
 		self.axes.set_axis_bgcolor('black')
 		self.axes.set_title('Signal Waveform', size=12)
 		
 		self.graph = self.axes.plot([],[], '.-')[0]
 		
+		self.f_autoscale = True
+		
 		super(WaveformPanel, self).__init__(parent, self.figure)
 		
 		# Controls
 		self.baseline = BaselineCtrl(self)
+		
+		self.autoscale = wx.CheckBox(self,label="Autoscale")
+		self.autoscale.SetValue(self.f_autoscale)
+		self.autoscale.Bind(wx.EVT_CHECKBOX, self.OnAutoscale)
 		
 		csizer = wx.BoxSizer(wx.HORIZONTAL)
 		toolbar = CustomNavigationToolbar(self.canvas, self)
@@ -170,14 +185,13 @@ class WaveformPanel(PlotPanel):
 		csizer.Add(wx.StaticText(self,label="Baseline:"), 0, flag=wx.ALIGN_CENTER_VERTICAL)
 		csizer.Add(self.baseline, 0, flag=wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_RIGHT)
 		csizer.AddSpacer(10)
+		csizer.Add(self.autoscale, 0, flag=wx.ALIGN_CENTER_VERTICAL)
 		self.sizer.Add(csizer, 0, flag=wx.EXPAND)
 		
-	def DrawWaveform(self, ax, event_data):
-		""" Plot waveform."""
-		data = event_data.raw
-		#~ plot = self.plot
 		
-		#~ plt.ion()
+	def DrawWaveform(self, ax, event_data):
+		""" Plot waveforms."""
+		data = event_data.raw
 		
 		if data:
 			ydata = [d for d in data]
@@ -185,10 +199,45 @@ class WaveformPanel(PlotPanel):
 			
 			self.graph.set_xdata(xdata)
 			self.graph.set_ydata(data)
-			ax.set_xlim(0,len(data))
-			#~ ax.set_ylim(min(data),max(data))
 			
-			self.canvas.draw_idle()
+			if self.f_autoscale:
+				baseline_position = 0.3
+				current_limits =  ax.get_ylim()
+				e_ts, e_chan, e_summ, e_baseline, e_dbaseline =  integrate(event_data)[0:5]
+				
+				new_limits = self.autoscale_baseline(current_limits, max(data), min(data), e_baseline, baseline_position)
+				ax.set_ylim( new_limits)
+				ax.set_xlim(0,len(data))
+			
+			self.canvas.draw()
+			
+	
+	def autoscale_baseline(self, old_limits, new_max, new_min, new_baseline, baseline_position ):
+		""" Return such a new limits that the baseline would stay on the same place """
+		old_min, old_max = old_limits
+		
+		range_high = float(new_max - new_baseline)/(1-baseline_position)
+		range_low = float(new_baseline - new_min)/baseline_position
+		range_old = old_max - old_min
+		
+		range_new = max(range_high, range_low)
+		
+		if range_old > range_new and new_max < old_max and new_min > old_min:
+			return old_limits
+			
+		else:
+			high = new_baseline + range_new * (1-baseline_position)
+			low = new_baseline - range_new * baseline_position
+			
+			#round to 100
+			high = math.ceil(high/100.0) * 100.0
+			low = math.floor(low/100.0) * 100.0
+			
+			return (low, high)
+	
+	def OnAutoscale(self, event):
+		""" Autoscale checkbox toggled """
+		self.f_autoscale = self.autoscale.GetValue()
 
 			
 class HistPanel(PlotPanel):
@@ -197,13 +246,46 @@ class HistPanel(PlotPanel):
 		dpi = 100
 		self.figure = Figure((3.0, 3.0), dpi=dpi)
 		self.axes = self.figure.add_subplot(111)
-		self.axes.set_axis_bgcolor('red')
-		self.axes.set_title('Energy Histogram', size=12)
 		
 		super(HistPanel, self).__init__(parent, self.figure)	
 		
 		toolbar = CustomNavigationToolbar(self.canvas, self)
 		self.sizer.Add(toolbar,0)
+		
+	def DrawHist(self):
+		global hist
+		print 'events:',  len(events)
+		
+		#~ self.axes.cla()
+		self.axes.cla()
+		
+		#TODO: refactor
+		
+		arr = np.array(hist)
+		
+		mean = np.mean(arr)
+		std = np.std(arr)
+		
+		min_ = np.percentile(arr, 5)
+		max_ = np.percentile(arr, 95)
+		
+		range_ = (min_, max_)
+		
+		
+		self.axes.set_title('Energy Histogram', size=12)
+		hist1 =self.axes.hist(arr, 100, range=range_, histtype='stepfilled', facecolor='g')
+		self.axes.set_ylim(0,max(hist1[0]))
+		
+		
+		
+		#~ self.axes.set_xlim(-1000, 1000)
+		
+		ticks = self.axes.get_xticks()
+		labels = [repr(int(i)) for i in ticks]
+		self.axes.set_xticklabels(labels, rotation=30)
+		
+		self.canvas.draw_idle()
+		
 
 class MainFrame(wx.Frame):
 	def __init__(self, parent, id): 
@@ -232,7 +314,7 @@ class MainFrame(wx.Frame):
 		self.timer.Start(TIMER_RATE)
 	
 	def OnDataReady(self, event):
-		print('data!')
+		#~ print('data!')
 		self.waveform.DrawWaveform(self.waveform.axes, event.data)
 		self.ready=True
 	
@@ -290,8 +372,8 @@ class MainFrame(wx.Frame):
 		evt = events[-1:]
 		
 		if evt:
-			print(',\t'.join( map(str, integrate(evt[0], args.baseline) )))
-			#~ self.waveform.
+			#~ print(',\t'.join( map(str, integrate(evt[0], args.baseline) )))
+			self.hist.DrawHist()
 
 	def OnCloseWindow(self, event):
 		if self.worker:
