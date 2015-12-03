@@ -93,7 +93,7 @@ def main():
 		nevents += 1
 		#~ if debug and (nevents % 100000 == 0):
 			#~ print('events: %d' %nevents)
-		print(',\t'.join( map(str, integrate(event, baseline, length) )))
+		outfile.write( ',\t'.join( map(str, integrate(event, baseline, length) )) + '\n')
 		
 	fin()
 	
