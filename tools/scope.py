@@ -4,12 +4,15 @@
 # Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
 # License: GPLv2
 
+
+#TODO: convert buttons and other controls to gui snippets
+
 import sys,os
 import argparse
 import wx
 import time
 import io
-from threading import *
+from threading import Thread
 import math #round
 import numpy as np
 
@@ -26,7 +29,8 @@ from matplotlib.backends.backend_wxagg import \
 
 
 WINDOW_TITLE = "SIS3316 ACD data waveforms viewer"
-TIMER_RATE = 2500 #milliseconds
+TIMER_RATE = 1900 #milliseconds
+FONT_SIZE = 9
 
 # Button definitions
 ID_PAUSE = wx.NewId()
@@ -51,6 +55,7 @@ class DataReadyEvent(wx.PyEvent):
 		self.SetEventType(EVT_DATA_READY_ID)
 		self.data = data
 
+matplotlib.rcParams.update({'font.size': FONT_SIZE})
 
 class EventParser(Thread):
 	"""Thread class that executes event processing."""
@@ -132,10 +137,9 @@ class BaselineCtrl(wx.SpinCtrl):
 		kwargs['size'] = wx.Size(60, -1)
 		wx.SpinCtrl.__init__(self, *args_, **kwargs)
 		
-		self.Bind(wx.EVT_SPIN, self.OnSpin)
-		#~ self.Bind(wx.EVT_SPIN_DOWN, self.OnDown)
+		self.Bind(wx.EVT_SPINCTRL, self.OnSpin)
 
-	def OnSpin(self):
+	def OnSpin(self,event):
 		global args
 		args.baseline = self.GetValue()
 
@@ -160,12 +164,11 @@ class WaveformPanel(PlotPanel):
 		global args
 		
 		dpi = 100
+		
 		self.figure = Figure((2.0, 2.0), dpi=dpi)
 		self.axes = self.figure.add_subplot(111)
 		self.axes.set_axis_bgcolor('black')
-		self.axes.set_title('Signal Waveform', size=12)
-		
-		self.graph = self.axes.plot([],[], '.-')[0]
+		self.axes.set_title('Signal Waveform', size=FONT_SIZE+1)
 		
 		self.f_autoscale = True
 		
@@ -188,27 +191,53 @@ class WaveformPanel(PlotPanel):
 		csizer.Add(self.autoscale, 0, flag=wx.ALIGN_CENTER_VERTICAL)
 		self.sizer.Add(csizer, 0, flag=wx.EXPAND)
 		
+		self.axes.grid(color='yellow', linestyle='dotted', alpha=0.7)
+		
+		# Fade effect
+		#~ self.backlog = 20
+		#~ self.graphs = [self.axes.plot([],[], '.-')[0] for i in range(0,self.backlog)]
+		self.graphs = []
+		
+		y_limits =  self.axes.get_ylim()
+		x = args.baseline
+		self.vline = self.axes.plot([], [], 'y--')[0]
+		
 		
 	def DrawWaveform(self, ax, event_data):
 		""" Plot waveforms."""
 		data = event_data.raw
+		backlog = 8
+		
+		if len(self.graphs) > backlog:
+			self.graphs.pop(0).remove()
 		
 		if data:
 			ydata = [d for d in data]
 			xdata = range(0,len(data))
 			
-			self.graph.set_xdata(xdata)
-			self.graph.set_ydata(data)
+			#~ self.graph.set_xdata(xdata)
+			#~ self.graph.set_ydata(data)
+			
+			self.graphs.append( self.axes.plot(xdata,ydata, '-g')[0] )
+			
+			current_limits =  ax.get_ylim()
+			self.vline.set_xdata( (args.baseline,) * 2) # (x,x)
+			self.vline.set_ydata(current_limits)
 			
 			if self.f_autoscale:
 				baseline_position = 0.3
-				current_limits =  ax.get_ylim()
+				
 				e_ts, e_chan, e_summ, e_baseline, e_dbaseline =  integrate(event_data)[0:5]
 				
 				new_limits = self.autoscale_baseline(current_limits, max(data), min(data), e_baseline, baseline_position)
 				ax.set_ylim( new_limits)
 				ax.set_xlim(0,len(data))
-			
+				
+
+			#Fade effect
+			for i,g in enumerate(self.graphs):
+				g.set_alpha(float(i)/backlog)
+		
 			self.canvas.draw()
 			
 	
@@ -250,30 +279,63 @@ class HistPanel(PlotPanel):
 		super(HistPanel, self).__init__(parent, self.figure)	
 		
 		toolbar = CustomNavigationToolbar(self.canvas, self)
-		self.sizer.Add(toolbar,0)
+		
+		pauseBtn = wx.Button(self, wx.ID_ANY, "Pause")
+		pauseBtn.Bind(wx.EVT_BUTTON, self.onTogglePause)
+		
+		clearBtn = wx.Button(self, wx.ID_ANY, "Clear")
+		clearBtn.Bind(wx.EVT_BUTTON, self.onToggleClear)
+		
+		csizer = wx.BoxSizer(wx.HORIZONTAL)
+		csizer.Add(toolbar,0)
+		csizer.Add((0, 0), 1, wx.EXPAND) #spacer
+		csizer.Add(pauseBtn, border=5, flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL)
+		csizer.Add(clearBtn, border=5, flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL)
+		
+		self.sizer.Add(csizer,0, flag=wx.EXPAND)
+		
+		self.paused = False
+		
+	def onTogglePause(self,event):
+		if self.paused:
+			event.EventObject.SetLabel("Pause")
+		else:
+			event.EventObject.SetLabel("Continue")
+		
+		self.paused = not self.paused #toggle
+		
+	def onToggleClear(self,event):
+		global hist
+		hist[:] = [] #purge
+		self.axes.cla()
+		self.canvas.draw()
+		print("Clear")
 		
 	def DrawHist(self):
 		global hist
 		print 'events:',  len(events)
 		
-		#~ self.axes.cla()
+		if self.paused:
+			return
+		
 		self.axes.cla()
 		
 		#TODO: refactor
+		hist = hist[-100000:]
 		
 		arr = np.array(hist)
 		
 		mean = np.mean(arr)
 		std = np.std(arr)
 		
-		min_ = np.percentile(arr, 5)
-		max_ = np.percentile(arr, 95)
+		min_ = np.percentile(arr, 1)
+		max_ = np.percentile(arr, 99)
 		
 		range_ = (min_, max_)
 		
 		
-		self.axes.set_title('Energy Histogram', size=12)
-		hist1 =self.axes.hist(arr, 100, range=range_, histtype='stepfilled', facecolor='g')
+		self.axes.set_title('Energy Histogram', size=FONT_SIZE+1)
+		hist1 =self.axes.hist(arr, 50, range=range_, histtype='stepfilled', facecolor='g', zorder=0)
 		self.axes.set_ylim(0,max(hist1[0]))
 		
 		
@@ -283,6 +345,12 @@ class HistPanel(PlotPanel):
 		ticks = self.axes.get_xticks()
 		labels = [repr(int(i)) for i in ticks]
 		self.axes.set_xticklabels(labels, rotation=30)
+		
+		# Grid
+		self.axes.xaxis.grid(True, zorder=2,color='k', linestyle='dotted', alpha=0.7)
+		# Remove ticks
+		for tic in self.axes.xaxis.get_major_ticks():
+			tic.tick1On = tic.tick2On = False
 		
 		self.canvas.draw_idle()
 		
@@ -321,26 +389,33 @@ class MainFrame(wx.Frame):
 	def create_main_panel(self):
 		self.panel = wx.Panel(self)
 		
-		# The Button
-		self.toggleBtn = wx.Button(self.panel, ID_PAUSE, "Pause") #TODO: rename to pauseBtn
-		self.toggleBtn.Bind(wx.EVT_BUTTON, self.onTogglePause)
-		
-		#~ self.Bind(wx.EVT_BUTTON, self.on_pause_button, self.pause_button)
-		#~ self.Bind(wx.EVT_UPDATE_UI, self.on_update_pause_button, self.pause_button)
-		
 		self.waveform = WaveformPanel(self.panel)
 		self.hist = HistPanel(self.panel)
 		
+	
+		
+		
 		# Align control elements:
 		self.vbox1 = wx.BoxSizer(wx.VERTICAL)
-		self.vbox1.Add(self.toggleBtn, border=5, flag=wx.ALL | wx.ALIGN_CENTER_VERTICAL)
+		
+		cb_waveform = wx.CheckBox(self.panel,label="Waveform")
+		cb_hist = wx.CheckBox(self.panel,label="Histogram")
+		cb_baseline = wx.CheckBox(self.panel,label="Baseline")
+		
+		cb_waveform.SetValue(True)
+		cb_hist.SetValue(True)
+		
+		self.vbox1.Add(cb_waveform, 0)
+		self.vbox1.Add(cb_hist, 0)
+		self.vbox1.Add(cb_baseline, 0)
 		self.vbox1.AddSpacer(20)
 		
 		# Align controls and plots
 		self.hbox = wx.BoxSizer(wx.HORIZONTAL)
 		self.hbox.Add(self.vbox1, 0, flag=wx.LEFT | wx.TOP)
-		self.hbox.Add(self.waveform, 1, flag=wx.GROW)
 		self.hbox.AddSpacer(10) 
+		self.hbox.Add(self.waveform, 1, flag=wx.GROW)
+		self.hbox.AddSpacer(20) 
 		self.hbox.Add(self.hist, 1, flag=wx.GROW)
 
 
@@ -352,28 +427,32 @@ class MainFrame(wx.Frame):
 	
 	def create_status_bar(self):
 		self.statusbar = self.CreateStatusBar()
+		self.statusbar.SetFieldsCount(2)
+		self.statusbar.SetStatusWidths([-1, -2])
 		
+	def updateStatus(self):
+		global events
+		global args
+		global hist
 		
- 
-	def onTogglePause(self, event):		
-		if self.timer.IsRunning():
-			#~ self.worker.pause()
-			self.timer.Stop()
-			self.toggleBtn.SetLabel("Continue")
-		else:
-			#~ self.worker.resume()
-			self.timer.Start(TIMER_RATE)
-			self.toggleBtn.SetLabel("Pause")
-			
+		events_count = len(events)
+		hist_count = len(hist)
+		
+		self.statusbar.SetStatusText('Events: %d' % events_count, 0)
+		self.statusbar.SetStatusText('Hist: %d' % hist_count, 1)
+		pass
  
 	def onTimerTick(self, event):
 		#~ print ("updated: %s" % time.ctime())
 		global events
-		evt = events[-1:]
-		
-		if evt:
+		evt = events[-1:] 
+		if evt: # If already have some events.
 			#~ print(',\t'.join( map(str, integrate(evt[0], args.baseline) )))
 			self.hist.DrawHist()
+			
+		self.updateStatus()
+	
+	
 
 	def OnCloseWindow(self, event):
 		if self.worker:
