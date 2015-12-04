@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-
 """ Dump sis3316 configuration to a file (with -c loads configuration from file)"""
 
 from __future__ import print_function
@@ -45,7 +44,7 @@ def conf_load(dev, config):
 	
 
 def main():
-	parser = argparse.ArgumentParser(description=__doc_)
+	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument('host', help='hostname or IP address')
 	parser.add_argument('port', type=int, nargs="?", default=1234, help='UDP port number')
 	parser.add_argument('-c','--conf', nargs=1, dest = 'conffile', type=argparse.FileType('r'), help='Load configuration from file.')
