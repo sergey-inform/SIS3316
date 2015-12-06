@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-''' Integrate ADC waveforms.
 '''
-# Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
-# License: GPLv2
-
+Integrate ADC waveforms.
+   
+Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
+License: GPLv2
+'''
 
 import sys,os
 import argparse
@@ -20,7 +21,7 @@ debug = False #global debug messages
 
 def integrate(event, baseline = 20, length = 0):
 	ts = (event.ts_hi << 32) + (event.ts_lo1 <<16) + event.ts_lo2
-	ts = float(ts)/250000000
+	#~ ts = float(ts)/250000000 #ts in seconds (with 250 MHz)
 	
 	raw = event.raw
 	
@@ -50,7 +51,7 @@ def fin(signal=None, frame=None):
 	sys.exit(0)	
 
 def main():
-	parser = argparse.ArgumentParser(description=__doc__)
+	parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument('infile', nargs='?', type=str, default='-',
 		help="raw data file (stdin by default)")
 	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout,
@@ -59,11 +60,15 @@ def main():
 		help='a number of baseline samples')
 	parser.add_argument('-l','--length', type=int, default=None,
 		help='a number of samples to integrate (after the baseline samples)')
+	parser.add_argument('--csv', action='store_true', 
+		help='output as a .csv')
 
 	parser.add_argument('--debug', action='store_true')
 	args = parser.parse_args()
 	
 	global debug, nevents
+	
+	splitter = ',\t'
 
 	debug = args.debug
 	outfile =  args.outfile
@@ -78,9 +83,12 @@ def main():
 		except IOError as e:
 			sys.stderr.write('Err: ' + e.strerror+': "' + e.filename +'"\n')
 			exit(e.errno)
+			
+	if args.csv:
+		splitter = ';'
 	
 	try:
-		p = parse.Parse(infile, ('chan','raw') )
+		p = parse.Parse(infile)
 		
 	except ValueError as e:
 		sys.stderr.write("Err: %s \n" % e)
@@ -91,12 +99,10 @@ def main():
 	nevents = 0
 	for event in p:
 		nevents += 1
-		#~ if debug and (nevents % 100000 == 0):
-			#~ print('events: %d' %nevents)
-		outfile.write( ',\t'.join( map(str, integrate(event, baseline, length) )) + '\n')
+		outfile.write( splitter.join( map(str, integrate(event, baseline, length) )) + '\n')
 		
 	fin()
-	
+
 	
 if __name__ == "__main__":
     main()
