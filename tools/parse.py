@@ -1,10 +1,11 @@
 #!/usr/bin/env python
-''' Parse SIS3316 ADC raw (binary) data.
-	Bytes which doesn't look like ADC data will be skipped.
 '''
-# Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
-# License: GPLv2
-
+Parse SIS3316 ADC raw (binary) data.
+Bytes which doesn't look like ADC data will be skipped.
+   
+Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
+License: GPLv2
+'''
 
 import sys,os
 import argparse
@@ -13,8 +14,8 @@ import io
 import ctypes 
 import signal
 
-debug = False #global debug messages
-nevents = 0 #number of events
+debug = False #enable debug messages
+nevents = 0 #a number of events processed
 
 __fields__ = (
 	'chan',
@@ -66,22 +67,19 @@ class PeekableObject(object):
 		return contents
 
 class Parse:
+	'''
+	Get a fileobject.
+	Return the next event if any or raise StopIteration if no more events.                              
+	'''
+	
 	MAX_RAW = 65536
 	MAX_AVG = 65534
 	MAX_EVENT_LENGTH = (18 + 1022) * 4 + (MAX_RAW + MAX_AVG) * 2 # (hdr+maw_data) * word_sz + (raw+avg) * halfword_sz
 	
-	'''
-	Get a fileobject and a list of fields to parse.
 	
-	Return next event if any or raise StopIteration if no more events.                              
-	'''
-	def __init__(self, fileobj, fields=('chan', 'raw') ):
+	def __init__(self, fileobj ):
 		#check fieldnames
-		for f in fields:
-			if f not in __fields__:
-				raise ValueError("invalid field name %s."% str(f))
-		self._fields = fields
-		self._format = None #cached format
+		self._format_cache = None #cached format
 		self._last_evt = None #cached last event
 			
 		#warn on a common mistake
@@ -96,11 +94,9 @@ class Parse:
 
 	
 	def next(self):
-		""" Return events from a continuous redout (in general, from single memory bank), ordered by timestamp.
-		When events are rare, consecutive readouts could be merged. """
+		""" Return events. """
 		reader = self._reader
-		fields = self._fields
-		format_ = self._format
+		format_ = self._format_cache
 		
 		if self._last_evt:
 			reader.skip(self._last_evt.sz) #move forward
@@ -108,17 +104,17 @@ class Parse:
 		while True: # until next event parsed successfully or EOF 
 			evt = None
 						
-			#TODO: parse two events, check timestamps
+			## TODO: parse two events, check timestamps are consecutive.
 			
 			try:
-				if format_:
+				if format_: # try cached format
 					evt = self._peek_next(format_)
 				else:
-					self._format = self._parse_next()
-					evt = self._peek_next(self._format)
+					self._format_cache = self._parse_next()
+					evt = self._peek_next(self._format_cache)
 					
 					if debug:	
-						print( ', '.join( [f[0] for f in self._format._fields_] ) )
+						print( ', '.join( [f[0] for f in self._format_cache._fields_] ) )
 				
 				
 			except ValueError as e:
@@ -136,19 +132,19 @@ class Parse:
 				raise StopIteration
 			
 			if evt:
-				self._last_evt = evt
+				self._last_evt = evt #cache the event
 				return evt
 			else:
 				return None
 				
-		#TODO: check a timestamp of a next event
+		#TODO: check a timestamp of the next event
 	
 	def _parse_next(self): 
-		""" Try to calculate format of the next event from _reader.
+		""" Try to calculate a format of the next event from _reader.
 		Return a ctypes structure or raise ValueError/StopIteration.
 		"""
 		# Since a raw data format is a bit "overoptimized" 
-		# we don't know true event sizes, so we need to calculate it on data.
+		# we don't know true event sizes, so we need to guess it looking on the data.
 		
 		MAX_HDR_LEN = 18 * 4
 		header = self._reader.peek(MAX_HDR_LEN)
@@ -234,9 +230,9 @@ class Parse:
 			
 			
 			# There is no MAW length field :`(,
-			# so it's not easy to calculate actual event length looking on data...
+			# so it's not easy to calculate actual event length looking on the data...
 			#
-			# A reasonable workaround is to try to find next higher timestamp value, since it changes
+			# A reasonable workaround is to try to find the next higher timestamp value, since it changes
 			# only once in 17 seconds (on 250 MHz), and assume that MAW is everything between the pos
 			# and the next timestamp.
 			#
@@ -260,7 +256,7 @@ class Parse:
 		return CtypesStruct
 	
 	def _peek_next(self, format_):
-		""" Interprete bytes from _reader according to format_
+		""" Interprete bytes from _reader according to format_.
 		"""
 		if not format_:
 			raise ValueError("no format")
@@ -302,7 +298,7 @@ def fin(signal=None, frame=None):
 
 	
 def main():
-	parser = argparse.ArgumentParser(description=__doc__)
+	parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument('infile', nargs='?', type=str, default='-',
 		help="raw data file (stdin by default)")
 	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout,
@@ -336,12 +332,18 @@ def main():
 	
 	nevents = 0
 	for event in p:
-		nevents += 1
-		if debug and (nevents % 100000 == 0):
+		if (nevents % 100000 == 0):
 			print('events: %d' %nevents)
 		
-		#~ for a in event._fields_:
-			#~ print a, getattr(event, a[0])
+		if debug:
+			print("--- %d ---" % nevents)
+			
+			for a in event._fields_:
+				print( "%s: %s" % (a[0], getattr(event, a[0])) )
+				
+		nevents += 1
+			
+			
 	fin()
 	
 if __name__ == "__main__":
