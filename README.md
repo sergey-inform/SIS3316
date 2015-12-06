@@ -67,7 +67,7 @@ The next one use the previous ones.
 * parse  (data-> ts+features+waveforms) order by ts, ts rollover.
 * +parse-unpack -- read a packed ADC data stream, parse events and order them by ts
 * integrate <file> --ped= --len= -> events (text) ts, ch, val, ped, dped
-* +scope <dev/file> -> gui with waveforms and histogram
+* scope <dev/file> -> gui with waveforms and histogram
 ----
 * coinc <textfiles> -> coinc stats
 * trig  <textfiles> <channels> -> events (text)
