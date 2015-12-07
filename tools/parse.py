@@ -301,8 +301,6 @@ def main():
 	parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument('infile', nargs='?', type=str, default='-',
 		help="raw data file (stdin by default)")
-	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout,
-		help="redirect output to a file")
 	parser.add_argument('--debug', action='store_true')
 	args = parser.parse_args()
 	
@@ -310,7 +308,6 @@ def main():
 	global debug, nevents
 
 	debug = args.debug
-	outfile =  args.outfile
 
 	if args.infile == '-':
 		infile = sys.stdin
