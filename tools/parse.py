@@ -266,7 +266,7 @@ class Parse:
 		evt = format_.from_buffer_copy(data) #raises ValueError if not enougth data
 		evt.sz = sz
 		evt.ts = (evt.ts_hi << 32) + (evt.ts_lo1 <<16) + evt.ts_lo2
-		evt.ts = float(evt.ts)/250000000 #ts in seconds (with 250 MHz)
+		#~ evt.ts = float(evt.ts)/250000000 #ts in seconds (with 250 MHz)
 		
 		#check 0xE
 		if (evt.hdr_raw >> 28) != 0xE: #don't have 0xE flag in raw header

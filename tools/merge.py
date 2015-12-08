@@ -13,11 +13,68 @@ import signal
 import io 
 
 import parse
+from integrate import integrate
 
 
 
 debug = False #enable debug messages
 nevents = 0 #a number of events processed
+
+
+class Coinc():
+	""" Return only coincidential events from several Parsers, ordered by timestamp.
+	"""
+	def __init__(self, readers, delays = {}, diff=2):
+		""" diff -- a maximal timestamp difference for coincidential events. """
+		self.merger = Merge(readers, delays)
+		self.diff = diff
+		
+		self.prev_event = self.merger.next()
+		self._cached_seq = {}
+	
+	def __iter__(self):
+		return self
+		
+	def next_chain(self):
+		''' return a sequence of coincidential events'''
+		
+		#~ if self.chain:
+			 #~ list(self.chain.values()) #return a list of events
+		
+		# Find the next sequence
+		prev = self.prev_event
+		seq = {}
+		
+		for cur in self.merger:
+			if abs(cur.ts - prev.ts) > self.diff: # not coinc
+				prev = cur
+			
+			else: #coincidence!
+				seq[prev.chan] = prev #append found element
+				prev = cur
+
+				for cur in self.merger:	#go further
+					if abs(cur.ts - prev.ts) > self.diff or cur.chan in seq:
+						#no more coincidential elements OR coinc, but for some reason we already have event form the same channel
+						
+						seq[prev.chan] = prev
+						self.prev_event = cur
+						return seq.values()
+					
+					else: #a new coincidential element
+						seq[cur.chan] = cur
+						prev = cur
+						
+
+	def next(self):
+		''' return a single coincidential event'''	
+		if self._cached_seq: #if already found a sequence of coincidential events
+			return self._cached_seq.pop(0)
+		
+		self._cached_seq = self.next_chain()
+		return self._cached_seq.pop(0)
+		
+	__next__ = next_chain
 
 
 class Merge():
@@ -103,8 +160,10 @@ def main():
 		help="raw data files (stdin by default)")
 	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout,
 		help="redirect output to a file")
-	parser.add_argument('-d','--delay', type=str, action='append',
+	parser.add_argument('-d','--delay', type=str, action='append', default=[],
 		help="set delay for a certan channel <ch>:<delay> (to subtract from a timestamp value)")
+	parser.add_argument('--coinc', action='store_true')
+	parser.add_argument('--diff', type=float, default = 2) #TODO
 	parser.add_argument('--debug', action='store_true')
 	args = parser.parse_args()
 	
@@ -114,8 +173,10 @@ def main():
 
 	debug = args.debug
 	outfile =  args.outfile
+	coinc = args.coinc
 
 	delays = {}
+	
 	for dstr in args.delay:
 		#try:
 		chan, delay = dstr.split(':')
@@ -145,18 +206,22 @@ def main():
 	signal.signal(signal.SIGINT, fin)
 	
 	nevents = 0
-	merger = Merge(readers, delays)
+	if coinc:
+		merger = Coinc(readers, delays) #TODO: diff
+	else:
+		merger = Merge(readers, delays)
 	
 	for event in merger:
 		if (nevents % 100000 == 0):
 			print('events: %d' %nevents)
 		
-		if debug:
-			print("%f %d" % (event.ts, event.chan))
-			#~ print(integrate(event))
-			
 		nevents += 1
-			
+		
+		if debug:
+			#~ print("%f %d" % (event.ts, event.chan))
+			print(integrate(event))
+			#~ print event.ts
+		
 	fin()
 	
 if __name__ == "__main__":
