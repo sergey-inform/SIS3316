@@ -15,8 +15,6 @@ import io
 import parse
 from integrate import integrate
 
-
-
 debug = False #enable debug messages
 nevents = 0 #a number of events processed
 
@@ -24,7 +22,7 @@ nevents = 0 #a number of events processed
 class Coinc():
 	""" Return only coincidential events from several Parsers, ordered by timestamp.
 	"""
-	def __init__(self, readers, delays = {}, diff=2):
+	def __init__(self, readers, delays = {}, diff=2.0):
 		""" diff -- a maximal timestamp difference for coincidential events. """
 		self.merger = Merge(readers, delays)
 		self.diff = diff
@@ -35,33 +33,32 @@ class Coinc():
 	def __iter__(self):
 		return self
 		
-	def next_chain(self):
+	def next_seq(self):
 		''' return a sequence of coincidential events'''
 		
-		#~ if self.chain:
-			 #~ list(self.chain.values()) #return a list of events
+		prev = self.prev_event
+		diff = self.diff
+		seq = {} 
 		
 		# Find the next sequence
-		prev = self.prev_event
-		seq = {}
-		
 		for cur in self.merger:
-			if abs(cur.ts - prev.ts) > self.diff: # not coinc
+			if abs(cur.ts - prev.ts) > diff: # not coinc
 				prev = cur
 			
-			else: #coincidence!
+			else: # a first coincidence
 				seq[prev.chan] = prev #append found element
 				prev = cur
 
-				for cur in self.merger:	#go further
-					if abs(cur.ts - prev.ts) > self.diff or cur.chan in seq:
-						#no more coincidential elements OR coinc, but for some reason we already have event form the same channel
+				for cur in self.merger:	# go further
+					if abs(cur.ts - prev.ts) > diff or cur.chan in seq:
+						# a cur is not coincidential 
+						# OR, for some reason, we already have coincidential event form the same channel
 						
 						seq[prev.chan] = prev
 						self.prev_event = cur
 						return seq.values()
 					
-					else: #a new coincidential element
+					else: # next coincidential event, save it in seq
 						seq[cur.chan] = cur
 						prev = cur
 						
@@ -71,57 +68,45 @@ class Coinc():
 		if self._cached_seq: #if already found a sequence of coincidential events
 			return self._cached_seq.pop(0)
 		
-		self._cached_seq = self.next_chain()
+		self._cached_seq = self.next_seq()
 		return self._cached_seq.pop(0)
 		
-	__next__ = next_chain
+	__next__ = next
 
 
 class Merge():
 	""" Return events from several sources (Parsers), ordered by timestamp. 
-		In case of StopIteration further data from Parser will be ignored,
-		so use this only for offline data processing.
+		In case of StopIteration on some Parser Merge will freeze until some data arrive.
 	"""
-	#TODO: change readout.py & parse.py: make it possible to Merge live data.
+	#TODO: change readout.py & parse.py: make it possible to Merge live data without freezing.
 	
 	def __init__(self, readers, delays = {}):
 		global debug
 		
 		self.readers = readers
+		self.delays = delays
 		self.pending = [] #pending events
 		
 		#Init pending events
 		for reader in readers:
 			try:
 				event = reader.next()
+				chan = event.chan
+				if chan in delays:
+					event.ts -= delays[chan]
+				
 				self.pending.append( [event.ts, event, reader] )
 		
 			except StopIteration:
 				self.readers.remove(reader)
 				sys.stderr.write("No data in %s \n" % reader._reader.fileobj.name) #REFACTOR
-				
-		#Init delays
-		channels = []
-		self.delays = {}
-		for r in readers:
-			channels.extend(r.get_channels())
 		
-		for c in channels:
-			if c in delays:
-				self.delays[c] = delays[c]
-			else:
-				self.delays[c] = 0
-				
-		#Fix delays #REFACTOR
-		for a in self.pending:
-			chan = a[1].chan
-			a = a[0] - self.delays[chan] #TODO: fix ts overlap
 			
 	def __iter__(self):
 		return self
 		
 	def next(self):
-		pending = self.pending #waitng events
+		pending = self.pending #a queue of waitng events
 		
 		if not pending:
 			raise StopIteration
@@ -133,8 +118,11 @@ class Merge():
 		try: 
 			next_ = reader.next()
 			chan = next_.chan
-			ts = next_.ts - self.delays[chan]
-			pending.append( (ts , next_, reader) )
+			if chan in self.delays:
+				next_.ts -= self.delays[chan]
+
+			pending.append( (next_.ts , next_, reader) )
+		
 		except StopIteration:
 				self.readers.remove(reader)
 				print ("No more data in reader" , reader)
@@ -163,7 +151,7 @@ def main():
 	parser.add_argument('-d','--delay', type=str, action='append', default=[],
 		help="set delay for a certan channel <ch>:<delay> (to subtract from a timestamp value)")
 	parser.add_argument('--coinc', action='store_true')
-	parser.add_argument('--diff', type=float, default = 2) #TODO
+	parser.add_argument('--diff', type=float, default = 2.0)
 	parser.add_argument('--debug', action='store_true')
 	args = parser.parse_args()
 	
@@ -174,6 +162,7 @@ def main():
 	debug = args.debug
 	outfile =  args.outfile
 	coinc = args.coinc
+	diff = args.diff
 
 	delays = {}
 	
@@ -207,7 +196,7 @@ def main():
 	
 	nevents = 0
 	if coinc:
-		merger = Coinc(readers, delays) #TODO: diff
+		merger = Coinc(readers, delays, diff=diff)
 	else:
 		merger = Merge(readers, delays)
 	
@@ -218,9 +207,9 @@ def main():
 		nevents += 1
 		
 		if debug:
-			#~ print("%f %d" % (event.ts, event.chan))
-			print(integrate(event))
-			#~ print event.ts
+			ts_str  = ('%f' % event.ts).rstrip('0').rstrip('.') #prevent +E in large numbers
+			print("%s\t%d" % ( ts_str, event.chan)) 
+			#~ print(integrate(event))
 		
 	fin()
 	
