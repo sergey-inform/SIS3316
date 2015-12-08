@@ -20,8 +20,9 @@ debug = False #global debug messages
 
 
 def integrate(event, baseline = 20, length = 0):
-	ts = (event.ts_hi << 32) + (event.ts_lo1 <<16) + event.ts_lo2
+	#~ ts = (event.ts_hi << 32) + (event.ts_lo1 <<16) + event.ts_lo2
 	#~ ts = float(ts)/250000000 #ts in seconds (with 250 MHz)
+	ts = event.ts
 	
 	raw = event.raw
 	
