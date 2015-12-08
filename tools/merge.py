@@ -150,8 +150,10 @@ def main():
 		help="redirect output to a file")
 	parser.add_argument('-d','--delay', type=str, action='append', default=[],
 		help="set delay for a certan channel <ch>:<delay> (to subtract from a timestamp value)")
-	parser.add_argument('--coinc', action='store_true')
-	parser.add_argument('--diff', type=float, default = 2.0)
+	parser.add_argument('--coinc', action='store_true',
+		help="get only coincidential events")
+	parser.add_argument('--diff', type=float, default = 2.0,
+		help="maximal difference in timestamps for coincidential events")
 	parser.add_argument('--debug', action='store_true')
 	args = parser.parse_args()
 	
