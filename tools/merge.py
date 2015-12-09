@@ -27,7 +27,7 @@ class Coinc():
 		self.merger = Merge(readers, delays)
 		self.diff = diff
 		
-		self.prev_event = self.merger.next()
+		self._cached_event = self.merger.next()
 		self._cached_seq = {}
 	
 	def __iter__(self):
@@ -36,31 +36,33 @@ class Coinc():
 	def next_seq(self):
 		''' return a sequence of coincidential events'''
 		
-		prev = self.prev_event
+		cur = self._cached_event
 		diff = self.diff
 		seq = {} 
 		
 		# Find the next sequence
-		for cur in self.merger:
-			if abs(cur.ts - prev.ts) > diff: # not coinc
-				prev = cur
-			
-			else: # a first coincidence
-				seq[prev.chan] = prev #append found element
-				prev = cur
+		for next_ in self.merger:
+			if abs(cur.ts - next_.ts) <= diff: # a first coincidence
+				
+				seq[next_.chan] = next_ #append next found element
 
-				for cur in self.merger:	# go further
-					if abs(cur.ts - prev.ts) > diff or cur.chan in seq:
-						# a cur is not coincidential 
-						# OR, for some reason, we already have coincidential event form the same channel
-						
-						seq[prev.chan] = prev
-						self.prev_event = cur
-						return seq.values()
+				for next_X in self.merger:	# go further
 					
-					else: # next coincidential event, save it in seq
+					if abs(cur.ts - next_X.ts) <= diff and next_X.chan not in seq:
+						# next coincidential event, save it in seq
+						seq[next_X.chan] = next_X
+					
+					else: 
+						# next_X is not coincidential 
+						# OR, for some reason, we already saved event form the same channel
+						
 						seq[cur.chan] = cur
-						prev = cur
+						
+						self._cached_event = next_X
+						return seq.values()
+						
+			else:
+				cur = next_
 						
 
 	def next(self):
@@ -69,7 +71,10 @@ class Coinc():
 			return self._cached_seq.pop(0)
 		
 		self._cached_seq = self.next_seq()
-		return self._cached_seq.pop(0)
+		if self._cached_seq:
+			return self._cached_seq.pop(0)
+		else:
+			raise StopIteration
 		
 	__next__ = next
 
@@ -211,8 +216,17 @@ def main():
 		if debug:
 			ts_str  = ('%f' % event.ts).rstrip('0').rstrip('.') #prevent +E in large numbers
 			print("%s\t%d" % ( ts_str, event.chan)) 
-			#~ print(integrate(event))
+			# print(integrate(event))
+
+	#~ 
+	#~ while True:
+		#~ a = merger.next_seq()
+		#~ if a:
+			#~ print [(e.ts,e.chan) for e in a]
+		#~ else:
+			#~ break
 		
+	
 	fin()
 	
 if __name__ == "__main__":
