@@ -207,24 +207,27 @@ def main():
 	else:
 		merger = Merge(readers, delays)
 	
-	for event in merger:
-		if (nevents % 100000 == 0):
-			print('events: %d' %nevents)
+#	for event in merger:
+#		if (nevents % 100000 == 0):
+#			print('events: %d' %nevents)
 		
-		nevents += 1
+#		nevents += 1
 		
-		if debug:
-			ts_str  = ('%f' % event.ts).rstrip('0').rstrip('.') #prevent +E in large numbers
-			print("%s\t%d" % ( ts_str, event.chan)) 
+#		if debug:
+#			ts_str  = ('%f' % event.ts).rstrip('0').rstrip('.') #prevent +E in large numbers
+#			print("%s\t%d" % ( ts_str, event.chan)) 
 			# print(integrate(event))
 
-	#~ 
-	#~ while True:
-		#~ a = merger.next_seq()
-		#~ if a:
-			#~ print [(e.ts,e.chan) for e in a]
-		#~ else:
-			#~ break
+	 
+	while True:
+		a = merger.next_seq()
+		if a:
+			if len(a) == len(readers) :
+				for e in a:
+					print("%d\t%d\t%g\t%g\t%g" % integrate(e))
+#				print [(e.ts,e.chan) for e in a]
+		else:
+			break
 		
 	
 	fin()

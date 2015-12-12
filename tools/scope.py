@@ -69,7 +69,7 @@ class EventParser(Thread):
 
 	def run(self):
 		global args, events, hist
-		p = Parse(args.infile, ('chan','raw') )
+		p = Parse(args.infile )
 		data = None
 		
 		while True:
@@ -84,7 +84,7 @@ class EventParser(Thread):
 			try:
 				data = p.next()
 			except StopIteration:
-				time.sleep(1)
+				time.sleep(0.5)
 				continue
 			
 			if self._notify_window.ready:
@@ -482,7 +482,7 @@ def main():
 		args.infile = sys.stdin
 	else:
 		try:
-			args.infile = io.open(args.infile, 'rb')
+			args.infile = io.open(args.infile,  'rb', buffering=0)
 		except IOError as e:
 			sys.stderr.write('Err: ' + e.strerror+': "' + e.filename +'"\n')
 			exit(e.errno)
