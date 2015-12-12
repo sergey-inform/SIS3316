@@ -19,7 +19,7 @@ debug = False #enable debug messages
 nevents = 0 #a number of events processed
 
 
-class Coinc():
+class Coinc(object):
 	""" Return only coincidential events from several Parsers, ordered by timestamp.
 	"""
 	def __init__(self, readers, delays = {}, diff=2.0):
@@ -30,9 +30,6 @@ class Coinc():
 		self._cached_event = self.merger.next()
 		self._cached_seq = {}
 	
-	def __iter__(self):
-		return self
-		
 	def next_seq(self):
 		''' return a sequence of coincidential events'''
 		
@@ -75,9 +72,39 @@ class Coinc():
 			return self._cached_seq.pop(0)
 		else:
 			raise StopIteration
+	
+	def __iter__(self):
+		return self
 		
 	__next__ = next
 
+
+class CoincFilter(Coinc):
+	""" Return only selected combinations of coincidencs. 
+	"""
+	def __init__(self, readers, delays = {}, diff = 2.0, sets = None):
+		""" If sets is none, return all combinations. """
+		self.sets = sets
+		super(CoincFilter, self).__init__(readers, delays, diff)
+		
+	def next(self):
+		while True:
+			nxt = self.next_seq()
+			if nxt:
+				chans = set( [evt.chan for evt in nxt])
+				
+				if chans in self.sets:
+					return nxt
+				else:
+					continue
+			
+			else:
+				raise StopIteration
+		
+	def __iter__(self):
+		return self
+		
+	__next__ = next
 
 class Merge():
 	""" Return events from several sources (Parsers), ordered by timestamp. 
@@ -107,9 +134,6 @@ class Merge():
 				sys.stderr.write("No data in %s \n" % reader._reader.fileobj.name) #REFACTOR
 		
 			
-	def __iter__(self):
-		return self
-		
 	def next(self):
 		pending = self.pending #a queue of waitng events
 		
@@ -133,6 +157,9 @@ class Merge():
 				print ("No more data in reader" , reader)
 		
 		return event
+		
+	def __iter__(self):
+		return self
 
 	__next__ = next
 
@@ -157,6 +184,8 @@ def main():
 		help="set delay for a certan channel <ch>:<delay> (to subtract from a timestamp value)")
 	parser.add_argument('--coinc', action='store_true',
 		help="get only coincidential events")
+	parser.add_argument('-s', '--set', type=str, action='append', default=[],
+		help="get only selected combinations of channels for coincidential events (assumes --coinc)")
 	parser.add_argument('--diff', type=float, default = 2.0,
 		help="maximal difference in timestamps for coincidential events")
 	parser.add_argument('--debug', action='store_true')
@@ -177,6 +206,10 @@ def main():
 		#try:
 		chan, delay = dstr.split(':')
 		delays[int(chan)]=float(delay)
+	
+	sets = []
+	for set_ in args.set:
+		sets.append( set( map(int, set_.split(',')) ) )
 	
 	infiles = []
 
@@ -202,32 +235,46 @@ def main():
 	signal.signal(signal.SIGINT, fin)
 	
 	nevents = 0
-	if coinc:
+	
+	if sets:
+		merger = CoincFilter(readers, delays, sets= sets)
+		
+		for seq in merger:
+			if seq:
+				print [(e.ts, e.chan) for e in seq]
+			
+			else:
+				break
+				
+	
+	elif coinc:
 		merger = Coinc(readers, delays, diff=diff)
+		
+		while True:
+			seq = merger.next_seq()
+			if seq:
+				if len(seq) == len(readers) :
+					for event in seq:
+						print("%d\t%d\t%g\t%g\t%g" % integrate(event))
+			else:
+				break
+				
 	else:
 		merger = Merge(readers, delays)
 	
-#	for event in merger:
-#		if (nevents % 100000 == 0):
-#			print('events: %d' %nevents)
-		
-#		nevents += 1
-		
-#		if debug:
-#			ts_str  = ('%f' % event.ts).rstrip('0').rstrip('.') #prevent +E in large numbers
-#			print("%s\t%d" % ( ts_str, event.chan)) 
-			# print(integrate(event))
+		for event in merger:
+			if (nevents % 100000 == 0):
+				print('events: %d' %nevents)
+			
+			nevents += 1
+			
+			if debug:
+				ts_str  = ('%f' % event.ts).rstrip('0').rstrip('.') #prevent +E in large numbers
+				print("%s\t%d" % ( ts_str, event.chan)) 
+				# print(integrate(event))
 
 	 
-	while True:
-		a = merger.next_seq()
-		if a:
-			if len(a) == len(readers) :
-				for e in a:
-					print("%d\t%d\t%g\t%g\t%g" % integrate(e))
-#				print [(e.ts,e.chan) for e in a]
-		else:
-			break
+	
 		
 	
 	fin()
