@@ -129,6 +129,7 @@ class Parse:
 					continue
 				
 			except EOFError:
+				self._last_evt = None
 				raise StopIteration
 			
 			if evt:
@@ -245,6 +246,7 @@ class Parse:
 			
 		except struct_error:
 			# occures than len(header[slice]) is less then expected
+			#~ print "eof nohdr" #DELME
 			raise EOFError
 		
 		# build a ctypes structure class
@@ -263,7 +265,12 @@ class Parse:
 		
 		sz = ctypes.sizeof(format_) #estimated length
 		data = self._reader.peek(sz)
-		evt = format_.from_buffer_copy(data) #raises ValueError if not enougth data
+		try:
+			evt = format_.from_buffer_copy(data) #raises ValueError if not enougth data
+		except ValueError:
+			#~ print 'eof nodata' #DELME
+			raise EOFError
+			
 		evt.sz = sz
 		evt.ts = (evt.ts_hi << 32) + (evt.ts_lo1 <<16) + evt.ts_lo2
 		#~ evt.ts = float(evt.ts)/250000000 #ts in seconds (with 250 MHz)

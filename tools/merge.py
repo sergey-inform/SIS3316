@@ -7,7 +7,7 @@ Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
 License: GPLv2
 '''
 
-import sys,os
+import sys, os, time
 import argparse
 import signal
 import io 
@@ -82,12 +82,14 @@ class Coinc(object):
 class CoincFilter(Coinc):
 	""" Return only selected combinations of coincidencs. 
 	"""
-	def __init__(self, readers, delays = {}, diff = 2.0, sets = None):
-		""" If sets is none, return all combinations. """
+	def __init__(self, readers, sets = [], **kvargs ):
 		self.sets = sets
-		super(CoincFilter, self).__init__(readers, delays, diff)
+		super(CoincFilter, self).__init__(readers, **kvargs)
 		
 	def next(self):
+		if not self.sets[:]: #check self.sets have __getitem__ and not empty
+			raise ValueError('empty sets')
+			
 		while True:
 			nxt = self.next_seq()
 			if nxt:
@@ -112,12 +114,13 @@ class Merge():
 	"""
 	#TODO: change readout.py & parse.py: make it possible to Merge live data without freezing.
 	
-	def __init__(self, readers, delays = {}):
+	def __init__(self, readers, delays = {}, wait=False):
 		global debug
 		
 		self.readers = readers
 		self.delays = delays
 		self.pending = [] #pending events
+		self.wait = wait #do not stop on EOF, wait for a new data
 		
 		#Init pending events
 		for reader in readers:
@@ -130,6 +133,7 @@ class Merge():
 				self.pending.append( [event.ts, event, reader] )
 		
 			except StopIteration:
+				#  wait for next event
 				self.readers.remove(reader)
 				sys.stderr.write("No data in %s \n" % reader._reader.fileobj.name) #REFACTOR
 		
@@ -144,17 +148,25 @@ class Merge():
 		ts, event, reader = pending.pop() #get the last element
 		
 		# get next event from the same reader
-		try: 
-			next_ = reader.next()
-			chan = next_.chan
-			if chan in self.delays:
-				next_.ts -= self.delays[chan]
+		while True:
+			
+			try: 
+				next_ = reader.next()
+				chan = next_.chan
+				if chan in self.delays:
+					next_.ts -= self.delays[chan]
 
-			pending.append( (next_.ts , next_, reader) )
-		
-		except StopIteration:
-				self.readers.remove(reader)
-				print ("No more data in reader" , reader)
+				pending.append( (next_.ts , next_, reader) )
+				break
+			
+			except StopIteration:
+				if 1: #wait for data
+					time.sleep(0.5)
+					continue
+					
+				else:
+					self.readers.remove(reader)
+					print ("No more data in reader" , reader)
 		
 		return event
 		
@@ -237,7 +249,7 @@ def main():
 	nevents = 0
 	
 	if sets:
-		merger = CoincFilter(readers, delays, sets= sets)
+		merger = CoincFilter(readers, sets=sets, delays=delays, diff=diff )
 		
 		for seq in merger:
 			if seq:
@@ -272,9 +284,6 @@ def main():
 				ts_str  = ('%f' % event.ts).rstrip('0').rstrip('.') #prevent +E in large numbers
 				print("%s\t%d" % ( ts_str, event.chan)) 
 				# print(integrate(event))
-
-	 
-	
 		
 	
 	fin()
