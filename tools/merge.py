@@ -15,6 +15,7 @@ import io
 import parse
 from integrate import integrate
 
+from operator import itemgetter 
 
 class Merge(object):
 	""" Return events from several sources (Parsers), ordered by timestamp. 
@@ -49,7 +50,7 @@ class Merge(object):
 		if not pending:
 			raise StopIteration
 		
-		pending.sort(reverse=True) #make it sorted by fist element (ts)
+		pending.sort(reverse=True, key=itemgetter(0)) #make it sorted by fist element (ts)
 		ts, event, reader = pending.pop() #get the last element
 		
 		# get next event from the same reader
@@ -212,11 +213,7 @@ def main():
 	parser.add_argument('--debug', action='store_true')
 	args = parser.parse_args()
 	
-	print args
-
-	debug = False #enable debug messages
 	
-
 	debug = args.debug
 	outfile =  args.outfile
 	coinc = args.coinc
@@ -268,7 +265,7 @@ def main():
 		
 		for seq in merger:
 			if seq:
-				print [(e.ts, e.chan) for e in seq]
+				print( [(e.ts, e.chan) for e in seq] )
 				nevents += len(seq)
 			
 			else:
