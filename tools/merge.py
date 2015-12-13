@@ -40,10 +40,10 @@ class Merge(object):
 			except StopIteration:
 				#  wait for next event
 				self.readers.remove(reader)
-				sys.stderr.write("No data in %s \n" % reader._reader.fileobj.name) #REFACTOR
+				sys.stderr.write("No initial data in %s \n" % reader._reader.fileobj.name) #REFACTOR
 		
 			
-	def next(self):
+	def _merger_next(self):
 		pending = self.pending #a queue of waitng events
 		
 		if not pending:
@@ -79,24 +79,25 @@ class Merge(object):
 		
 	def __iter__(self):
 		return self
+	
+	next = _merger_next
+	__next__ = next 	# reqiured for Python 3
 
-	__next__ = next
 
-
-class Coinc(Merge):
+class Coinc(object):
 	""" Return only coincidential events from several Parsers, ordered by timestamp.
 	"""
 	def __init__(self, *args,  **kvargs):
 		""" diff -- a maximal timestamp difference for coincidential events. """
 		self.diff = kvargs.pop('diff')
-		print 'a', args, 'kv', kvargs
 		self.merger = Merge(*args, **kvargs)
 		
 		
 		self._cached_event = self.merger.next()
 		self._cached_seq = {}
-	
-	def next_seq(self):
+		
+			
+	def _coinc_next(self):
 		''' return a sequence of coincidential events'''
 		
 		cur = self._cached_event
@@ -128,21 +129,24 @@ class Coinc(Merge):
 				cur = next_
 						
 
-	def next(self):
+	def _next_single(self):
 		''' return a single coincidential event'''	
-		if self._cached_seq: #if already found a sequence of coincidential events
-			return self._cached_seq.pop(0)
 		
-		self._cached_seq = self.next_seq()
-		if self._cached_seq:
-			return self._cached_seq.pop(0)
-		else:
-			raise StopIteration
+		if not self._cached_seq: #if no cached sequences
+			self._cached_seq = self._coinc_next() #try to get the next sequence
+			
+			if not self._cached_seq:
+				raise StopIteration
+		
+		return self._cached_seq.pop(0)
+				
 	
 	def __iter__(self):
 		return self
-		
+	
+	next = _coinc_next
 	__next__ = next
+	
 
 
 class CoincFilter(Coinc):
@@ -151,13 +155,14 @@ class CoincFilter(Coinc):
 	def __init__(self, readers, sets = [], **kvargs ):
 		self.sets = sets
 		super(CoincFilter, self).__init__(readers, **kvargs)
+		#~ self.next = self._filter_next
 		
-	def next(self):
+	def _filter_next(self):
 		if not self.sets[:]: #check self.sets have __getitem__ and not empty
 			raise ValueError('empty sets')
 			
 		while True:
-			nxt = self.next_seq()
+			nxt = self._coinc_next()
 			if nxt:
 				chans = set( [evt.chan for evt in nxt])
 				
@@ -171,7 +176,8 @@ class CoincFilter(Coinc):
 		
 	def __iter__(self):
 		return self
-		
+	
+	next=_filter_next
 	__next__ = next
 
 
@@ -215,7 +221,7 @@ def main():
 	outfile =  args.outfile
 	coinc = args.coinc
 	diff = args.diff
-	wait = args.follow
+	follow = args.follow
 
 	delays = {}
 	
@@ -253,8 +259,12 @@ def main():
 	
 	global nevents
 	
+	merger_args = {	'delays': delays,
+			'wait': follow,
+			}
+			
 	if sets:
-		merger = CoincFilter(readers, sets=sets, delays=delays, wait = wait, diff=diff )
+		merger = CoincFilter(readers, diff=diff, sets=sets, **merger_args )
 		
 		for seq in merger:
 			if seq:
@@ -266,10 +276,9 @@ def main():
 				
 	
 	elif coinc:
-		merger = Coinc(readers, delays=delays, wait = wait, diff = diff)
+		merger = Coinc(readers, diff=diff, **merger_args)
 		
-		while True:
-			seq = merger.next_seq()
+		for seq in merger:
 			if seq:
 				if len(seq) == len(readers) :
 					for event in seq:
@@ -279,7 +288,7 @@ def main():
 				break
 				
 	else:
-		merger = Merge(readers, delays, wait = wait)
+		merger = Merge(readers, **merger_args)
 	
 		for event in merger:
 			if (nevents % 100000 == 0):
