@@ -15,17 +15,83 @@ import io
 import parse
 from integrate import integrate
 
-debug = False #enable debug messages
-nevents = 0 #a number of events processed
+
+class Merge(object):
+	""" Return events from several sources (Parsers), ordered by timestamp. 
+		In case of StopIteration on some Parser Merge will freeze until some data arrive.
+	"""
+	def __init__(self, readers, delays = {}, wait=False):
+		
+		self.readers = readers
+		self.delays = delays
+		self.pending = [] #pending events
+		self.wait = wait #do not stop on EOF, wait for a new data
+		
+		#Init pending events
+		for reader in readers:
+			try:
+				event = reader.next()
+				chan = event.chan
+				if chan in delays:
+					event.ts -= delays[chan]
+				
+				self.pending.append( [event.ts, event, reader] )
+		
+			except StopIteration:
+				#  wait for next event
+				self.readers.remove(reader)
+				sys.stderr.write("No data in %s \n" % reader._reader.fileobj.name) #REFACTOR
+		
+			
+	def next(self):
+		pending = self.pending #a queue of waitng events
+		
+		if not pending:
+			raise StopIteration
+		
+		pending.sort(reverse=True) #make it sorted by fist element (ts)
+		ts, event, reader = pending.pop() #get the last element
+		
+		# get next event from the same reader
+		while True:
+			
+			try: 
+				next_ = reader.next()
+				chan = next_.chan
+				if chan in self.delays:
+					next_.ts -= self.delays[chan]
+
+				pending.append( (next_.ts , next_, reader) )
+				break
+			
+			except StopIteration:
+				if self.wait: #wait for data
+					time.sleep(0.5)
+					continue
+					
+				else:
+					if reader in self.readers:
+						self.readers.remove(reader)
+					sys.stderr.write("No more data in %s \n" % reader._reader.fileobj.name)
+					break
+		
+		return event
+		
+	def __iter__(self):
+		return self
+
+	__next__ = next
 
 
-class Coinc(object):
+class Coinc(Merge):
 	""" Return only coincidential events from several Parsers, ordered by timestamp.
 	"""
-	def __init__(self, readers, delays = {}, diff=2.0):
+	def __init__(self, *args,  **kvargs):
 		""" diff -- a maximal timestamp difference for coincidential events. """
-		self.merger = Merge(readers, delays)
-		self.diff = diff
+		self.diff = kvargs.pop('diff')
+		print 'a', args, 'kv', kvargs
+		self.merger = Merge(*args, **kvargs)
+		
 		
 		self._cached_event = self.merger.next()
 		self._cached_seq = {}
@@ -108,73 +174,8 @@ class CoincFilter(Coinc):
 		
 	__next__ = next
 
-class Merge():
-	""" Return events from several sources (Parsers), ordered by timestamp. 
-		In case of StopIteration on some Parser Merge will freeze until some data arrive.
-	"""
-	#TODO: change readout.py & parse.py: make it possible to Merge live data without freezing.
-	
-	def __init__(self, readers, delays = {}, wait=False):
-		global debug
-		
-		self.readers = readers
-		self.delays = delays
-		self.pending = [] #pending events
-		self.wait = wait #do not stop on EOF, wait for a new data
-		
-		#Init pending events
-		for reader in readers:
-			try:
-				event = reader.next()
-				chan = event.chan
-				if chan in delays:
-					event.ts -= delays[chan]
-				
-				self.pending.append( [event.ts, event, reader] )
-		
-			except StopIteration:
-				#  wait for next event
-				self.readers.remove(reader)
-				sys.stderr.write("No data in %s \n" % reader._reader.fileobj.name) #REFACTOR
-		
-			
-	def next(self):
-		pending = self.pending #a queue of waitng events
-		
-		if not pending:
-			raise StopIteration
-		
-		pending.sort(reverse=True) #make it sorted by fist element (ts)
-		ts, event, reader = pending.pop() #get the last element
-		
-		# get next event from the same reader
-		while True:
-			
-			try: 
-				next_ = reader.next()
-				chan = next_.chan
-				if chan in self.delays:
-					next_.ts -= self.delays[chan]
 
-				pending.append( (next_.ts , next_, reader) )
-				break
-			
-			except StopIteration:
-				if 1: #wait for data
-					time.sleep(0.5)
-					continue
-					
-				else:
-					self.readers.remove(reader)
-					print ("No more data in reader" , reader)
-		
-		return event
-		
-	def __iter__(self):
-		return self
-
-	__next__ = next
-
+nevents = 0 #a number of events processed
 
 def fin(signal=None, frame=None):
 	global nevents
@@ -194,6 +195,8 @@ def main():
 		help="redirect output to a file")
 	parser.add_argument('-d','--delay', type=str, action='append', default=[],
 		help="set delay for a certan channel <ch>:<delay> (to subtract from a timestamp value)")
+	parser.add_argument('-f', '--follow', action='store_true',
+		help="wait for a new events, appended data as the infile grows")
 	parser.add_argument('--coinc', action='store_true',
 		help="get only coincidential events")
 	parser.add_argument('-s', '--set', type=str, action='append', default=[],
@@ -205,12 +208,14 @@ def main():
 	
 	print args
 
-	global debug, nevents
+	debug = False #enable debug messages
+	
 
 	debug = args.debug
 	outfile =  args.outfile
 	coinc = args.coinc
 	diff = args.diff
+	wait = args.follow
 
 	delays = {}
 	
@@ -246,21 +251,22 @@ def main():
 	
 	signal.signal(signal.SIGINT, fin)
 	
-	nevents = 0
+	global nevents
 	
 	if sets:
-		merger = CoincFilter(readers, sets=sets, delays=delays, diff=diff )
+		merger = CoincFilter(readers, sets=sets, delays=delays, wait = wait, diff=diff )
 		
 		for seq in merger:
 			if seq:
 				print [(e.ts, e.chan) for e in seq]
+				nevents += len(seq)
 			
 			else:
 				break
 				
 	
 	elif coinc:
-		merger = Coinc(readers, delays, diff=diff)
+		merger = Coinc(readers, delays=delays, wait = wait, diff = diff)
 		
 		while True:
 			seq = merger.next_seq()
@@ -268,11 +274,12 @@ def main():
 				if len(seq) == len(readers) :
 					for event in seq:
 						print("%d\t%d\t%g\t%g\t%g" % integrate(event))
+						nevents += 1
 			else:
 				break
 				
 	else:
-		merger = Merge(readers, delays)
+		merger = Merge(readers, delays, wait = wait)
 	
 		for event in merger:
 			if (nevents % 100000 == 0):
