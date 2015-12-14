@@ -18,7 +18,7 @@ from parse import Parse
 from merge import CoincFilter
 from integrate import integrate
 
-import matplotlib.pyplot as pyplt
+import matplotlib.pyplot as plt
 
 
 class CoincHist(object):
@@ -46,18 +46,6 @@ class CoincHist(object):
 		if trig:
 			for event in data:
 				self.data[(event.chan, trig)].append( integrate(event)[2] )
-	
-	
-	def hist(self, chan, trig_name, opts={}):
-		ret = ""
-		
-		ret += "# " + str(chan) +'\t' + trig_name + '\n'
-		
-		data = self.data[(chan, trig_name)]
-		if data:
-			return np.histogram(data, **opts)
-		
-	
 	
 	
 
@@ -100,12 +88,10 @@ def main():
 		
 	parser.add_argument('--debug', action='store_true')
 	
-	try:
-		args = parser.parse_args()
+
+	args = parser.parse_args()
 		
-	except argparse.ArgumentTypeError as e:
-		sys.stderr.write("Wrong argument: " + str(e) + "\n")
-		exit(-1)
+
 	
 	print args
 	
@@ -178,12 +164,10 @@ def main():
 	for s in source:
 		storage.add(s)
 	
-	hist, bin_edges  = storage.hist(8,'bebe', {'bins':10,'range':(-50,50), 'density':True})
-	
-	print hist, bin_edges
-	pyplt.bar(bin_edges[:-1], hist, width = (100/10))
-	pyplt.xlim(min(bin_edges), max(bin_edges))
-	pyplt.show()  
+	#~ x, bins, patches =  storage.hist(8,'bebe', {'bins':10,'range':(-50,50), 'normed':True, 'histtype':'stepfilled'})
+	#~ 
+	#~ print x,bins
+	plt.show()  
 	
 	
 	
