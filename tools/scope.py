@@ -27,6 +27,9 @@ from matplotlib.backends.backend_wxagg import \
 	FigureCanvasWxAgg as FigCanvas, \
 	NavigationToolbar2WxAgg as NavigationToolbar
 
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter #ticks
+
+minorLocator = MultipleLocator(100)
 
 WINDOW_TITLE = "SIS3316 ACD data waveforms viewer"
 TIMER_RATE = 1900 #milliseconds
@@ -193,6 +196,7 @@ class WaveformPanel(PlotPanel):
 		
 		self.axes.grid(color='yellow', linestyle='dotted', alpha=0.7)
 		
+		
 		# Fade effect
 		#~ self.backlog = 20
 		#~ self.graphs = [self.axes.plot([],[], '.-')[0] for i in range(0,self.backlog)]
@@ -335,19 +339,23 @@ class HistPanel(PlotPanel):
 		
 		
 		self.axes.set_title('Energy Histogram', size=FONT_SIZE+1)
-		hist1 =self.axes.hist(arr, 50, range=range_, histtype='stepfilled', facecolor='g', zorder=0)
+		hist1 =self.axes.hist(arr, 100, range=range_, histtype='stepfilled', facecolor='g', zorder=0)
 		self.axes.set_ylim(0,max(hist1[0]))
 		
 		
 		
 		#~ self.axes.set_xlim(-1000, 1000)
 		
-		ticks = self.axes.get_xticks()
-		labels = [repr(int(i)) for i in ticks]
-		self.axes.set_xticklabels(labels, rotation=30)
+		# Bug: Ticks will not updating when zoom and pan
+		#ticks = self.axes.get_xticks()
+		#labels = [repr(int(i)) for i in ticks]
+		#self.axes.set_xticklabels(labels, rotation=30)
 		
+		self.axes.xaxis.set_minor_locator(minorLocator)	
+
 		# Grid
 		self.axes.xaxis.grid(True, zorder=2,color='k', linestyle='dotted', alpha=0.7)
+		self.axes.xaxis.grid(True, which='minor', color='k', linestyle='dotted', alpha=0.3)
 		# Remove ticks
 		for tic in self.axes.xaxis.get_major_ticks():
 			tic.tick1On = tic.tick2On = False
