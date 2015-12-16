@@ -49,7 +49,6 @@ class PlotPanel(wx.Panel):
 		
 		dpi = 100
 		dim = self._chooseDimensions(nplots)
-		print 'dim', dim
 		
 		self.figure = Figure((5.0, 5.0), dpi=dpi)
 		
@@ -83,22 +82,35 @@ class PlotPanel(wx.Panel):
 			ax_index = channels.index(chan)
 			ax = self.axes[ax_index]
 			ymax  = []
-				
+			
+			ax.cla()
+			
 			for trig, values in data[chan].iteritems():
 				
-				arr = np.array(values)
-				
-				mean = np.mean(arr)
-				std = np.std(arr)
-				min_ = np.percentile(arr, 1)
-				max_ = np.percentile(arr, 95)
-				range_ = (min_, max_)
-				
-				hist = ax.hist(values, 50,  range=range_, histtype='stepfilled', zorder=0, label = trig)
-				ymax.append(max(hist[0]))
+				if values:
+					arr = np.array(values)
+					
+					mean = np.mean(arr)
+					std = np.std(arr)
+					min_ = np.percentile(arr, 1)
+					max_ = np.percentile(arr, 95)
+					
+						
+					range_ = (min_, max_)
+					try:
+						
+						hist = ax.hist(values, 50,  range=range_, histtype='stepfilled', zorder=0, label = trig, alpha = 0.3)
+						ymax.append(max(hist[0]))
+					
+					except UnboundLocalError:
+						print 'matplotlib bug'
+						continue
+						
 			
-			ax.legend()
-			ax.set_ylim(0,max(ymax)* 0.9)
+			if ymax:
+			
+				ax.legend()
+				ax.set_ylim(0,max(ymax))
 				
 		
 		self.canvas.draw()
@@ -185,13 +197,15 @@ class MainFrame(wx.Frame):
 	
 	def onToggleUpdate(self,e):
 		self.plot.drawPlots()
-	
+
+
 class MainGUI(wx.App):
 	def OnInit(self):
 		self.frame = MainFrame(None, -1)
 		self.frame.Show(True)
 		self.SetTopWindow(self.frame)
 		return True
+
 
 def parse_cmdline_args():
 	parser = argparse.ArgumentParser(description=__doc__)
@@ -218,7 +232,8 @@ def parse_cmdline_args():
 	
 	
 	return parser.parse_args()
-	
+
+
 def parse_triggers(lines):
 	# Triggers
 	trigs = {}
@@ -239,6 +254,7 @@ def parse_triggers(lines):
 			sys.stderr.write("trig %s: %s \n"% (k, tuple(v) ))
 			
 	return trigs
+
 
 def open_readers(infiles):
 	''' Open files, create parser instances.
@@ -270,6 +286,7 @@ def parse_delays(delay_list):
 	
 	return delays
 
+
 class CoincData(object):
 	""" A storage for acquired events data.
 	"""
@@ -293,29 +310,38 @@ class CoincData(object):
 		#determine which trigger is it
 		
 		chans = set( [ e.chan for e in event_list])
-		trig = next((tr for tr, ch in self.triggers.items() if ch == chans), None)
-		if trig:
-			for event in event_list:
-				self.data[event.chan][trig].append( integrate(event)[2] )
+		#~ trig = next((tr for tr, ch in self.triggers.items() if chans.issuperset(set(ch))), None)
+		
+		triggers = [ tr for tr, ch in self.triggers.items() if chans.issuperset(set(ch)) ]
+
+		#~ print 'chans', chans, 'trig', triggers
+		
+		if triggers:
+			for trig in triggers:
+				for event in event_list:
+					chan = event.chan
+					if chan in self.data:
+						if trig in self.data[chan]:
+							self.data[chan][trig].append( integrate(event)[2] )  #REFACTOR
 				
 	def get(chan):
 		return self.data[chan]
 
 class CoincFinder(Thread):
 	"""Thread class that executes event processing."""
-	def __init__(self, source, storage):
+	def __init__(self, source):
+		global storage
 		Thread.__init__(self)
 		self._f_abort = False
 		self._f_pause = False
 		self.source = source
-		self.storage = storage
-		
 		
 		self.start() # start the thread on it's creation
 		
 	def run(self):
+		global storage
 		source = self.source
-		storage = self.storage
+
 		while True:
 			if self._f_abort:
 				return 0
@@ -329,7 +355,6 @@ class CoincFinder(Thread):
 			# Append data to storage
 			storage.append(data)
 			
-			time.sleep(1)
 		
 	def abort(self):
 		""" Method for use by main thread to signal an abort."""
@@ -352,7 +377,8 @@ def main():
 	
 	args = parse_cmdline_args()
 	
-	print args
+	if args.debug:
+		print args
 	
 	# Trig
 	triglines = []
@@ -372,7 +398,7 @@ def main():
 	
 	# Create a Coinc Finder thread
 	storage = CoincData(trigs)
-	worker = CoincFinder(source, storage)
+	worker = CoincFinder(source)
 	
 	
 	# TODO: nogui mode (ascii? curses?)

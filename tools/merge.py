@@ -167,10 +167,12 @@ class CoincFilter(Coinc):
 			if nxt:
 				chans = set( [evt.chan for evt in nxt])
 				
-				if chans in self.sets:
-					return nxt
-				else:
-					continue
+				
+				for set_ in self.sets:
+					if chans.issuperset(set_):
+						return nxt
+					else:
+						break
 			
 			else:
 				raise StopIteration
