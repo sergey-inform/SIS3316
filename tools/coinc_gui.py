@@ -101,7 +101,7 @@ class PlotPanel(wx.Panel):
 			ax.set_ylim(0,max(ymax)* 0.9)
 				
 		
-		self.canvas.draw_idle()
+		self.canvas.draw()
 		
 	
 	def _chooseDimensions(self,len):
@@ -171,6 +171,7 @@ class MainFrame(wx.Frame):
 		#~ self.vbox1.SetSizeHints(self.panel)
 		self.vbox1.Fit(self )
 		
+		self.plot.drawPlots()
 	
 	def onQuit(self, e):
 		self.Close()
@@ -327,6 +328,8 @@ class CoincFinder(Thread):
 			
 			# Append data to storage
 			storage.append(data)
+			
+			time.sleep(1)
 		
 	def abort(self):
 		""" Method for use by main thread to signal an abort."""
