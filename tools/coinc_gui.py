@@ -18,16 +18,172 @@ from merge import CoincFilter
 from integrate import integrate
 
 
+import matplotlib	#TODO: put this inside GUI init
+matplotlib.use('WXAgg')
+from matplotlib.figure import Figure
+
+from matplotlib.backends.backend_wxagg import \
+	FigureCanvasWxAgg as FigCanvas, \
+	NavigationToolbar2WxAgg as NavigationToolbar
+
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter #ticks
+
+
 WINDOW_TITLE = "Histogram viewer"
 FONT_SIZE = 9
 debug = False
 
 conf = {} # program configuration
 
+storage = None #Data storage (Coinc Data)
+
+
+class PlotPanel(wx.Panel):
+	def __init__(self, parent):
+		global storage
+		data = storage.data
+		
+		nplots = len(data)
+		
+		super(PlotPanel, self).__init__(parent)
+		
+		dpi = 100
+		dim = self._chooseDimensions(nplots)
+		print 'dim', dim
+		
+		self.figure = Figure((5.0, 5.0), dpi=dpi)
+		
+		self.axes = []
+		for a in range(1,nplots+1):
+			self.axes.append(self.figure.add_subplot(dim[0],dim[1],a))
+		
+		self.canvas = FigCanvas(self, -1, self.figure)
+		
+		self.sizer = wx.BoxSizer(wx.VERTICAL)
+		self.sizer.Add(self.canvas, 1, flag= wx.TOP | wx.GROW)
+		self.SetSizer(self.sizer)
+	
+	
+	def drawPlots(self, n=None):
+		""" Redraw histograms """
+		
+		global storage
+		data = storage.data
+		
+		channels = sorted(data.keys())
+		
+		if n in channels:
+			channels = [n]
+		
+		for chan in channels:
+			if not data[chan]:
+				print ("No data for chan %d" %chan)
+				break
+			
+			ax_index = channels.index(chan)
+			ax = self.axes[ax_index]
+			ymax  = []
+				
+			for trig, values in data[chan].iteritems():
+				
+				arr = np.array(values)
+				
+				mean = np.mean(arr)
+				std = np.std(arr)
+				min_ = np.percentile(arr, 1)
+				max_ = np.percentile(arr, 95)
+				range_ = (min_, max_)
+				
+				hist = ax.hist(values, 50,  range=range_, histtype='stepfilled', zorder=0, label = trig)
+				ymax.append(max(hist[0]))
+			
+			ax.legend()
+			ax.set_ylim(0,max(ymax)* 0.9)
+				
+		
+		self.canvas.draw_idle()
+		
+	
+	def _chooseDimensions(self,len):
+		dim = None
+		
+		if len == 1:
+			dim = [1,1]
+		elif len == 2:
+			dim = [1,2]
+		elif len in (3,4):
+			dim = [2,2]
+		elif len in (5,6):
+			dim = [2,3]
+		elif len in (7,8,9):
+			dim = [3,3]
+		elif len in (10,11,12):
+			dim = [3,4]
+		elif len in (13,14,15,16):
+			dim = [4,4]
+			
+		return dim
+
 
 class MainFrame(wx.Frame):
-	pass
+	def __init__(self, parent, id):
+		wx.Frame.__init__(self, parent, id, WINDOW_TITLE)
+		
+		menubar = self.create_menu()
+		self.SetMenuBar(menubar)
+		
+		self.create_main_panel()
+		
 	
+	def create_menu(self):
+		menubar = wx.MenuBar()
+		fileMenu = wx.Menu()
+		
+		fitem =  fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
+		menubar.Append(fileMenu, '&File')
+		
+		self.Bind(wx.EVT_MENU, self.onQuit, fitem)
+		
+		return menubar
+		
+	
+	def create_main_panel(self):
+		self.panel = wx.Panel(self)
+		
+		# Button
+		print_btn = wx.Button(self.panel, wx.ID_ANY, "Print data")
+		print_btn.Bind(wx.EVT_BUTTON, self.onTogglePrint)
+		
+		update_btn = wx.Button(self.panel, wx.ID_ANY, "Update plots")
+		update_btn.Bind(wx.EVT_BUTTON, self.onToggleUpdate)
+		
+		
+		#Plot
+		self.plot = PlotPanel(self.panel)
+		
+		
+		self.vbox1 = wx.BoxSizer(wx.VERTICAL)
+		self.vbox1.Add(print_btn, 0)
+		self.vbox1.Add(update_btn, 0)
+		self.vbox1.Add(self.plot, 1, flag=wx.EXPAND)
+		
+		self.panel.SetSizer(self.vbox1)
+		#~ self.vbox1.SetSizeHints(self.panel)
+		self.vbox1.Fit(self )
+		
+	
+	def onQuit(self, e):
+		self.Close()
+		
+	def onTogglePrint(self, e):
+		global storage
+		for k,v in storage.data.iteritems():
+			if v:
+				for trig, data in v.iteritems():
+					print k, trig, len(data) 
+	
+	def onToggleUpdate(self,e):
+		self.plot.drawPlots()
 	
 class MainGUI(wx.App):
 	def OnInit(self):
@@ -35,9 +191,6 @@ class MainGUI(wx.App):
 		self.frame.Show(True)
 		self.SetTopWindow(self.frame)
 		return True
-
-
-
 
 def parse_cmdline_args():
 	parser = argparse.ArgumentParser(description=__doc__)
@@ -86,7 +239,6 @@ def parse_triggers(lines):
 			
 	return trigs
 
-
 def open_readers(infiles):
 	''' Open files, create parser instances.
 	    Return a list of Parser objects.
@@ -109,7 +261,6 @@ def open_readers(infiles):
 			exit(1)
 	return readers
 	
-
 def parse_delays(delay_list):
 	delays = {}
 	for dstr in delay_list:
@@ -148,8 +299,6 @@ class CoincData(object):
 				
 	def get(chan):
 		return self.data[chan]
-
-	
 
 class CoincFinder(Thread):
 	"""Thread class that executes event processing."""
@@ -196,6 +345,7 @@ class CoincFinder(Thread):
 def main():
 	
 	global conf
+	global storage
 	
 	args = parse_cmdline_args()
 	
