@@ -39,7 +39,7 @@ def integrate(event, baseline = 20, length = 0):
 	dped = sum( [1.0 * (x-ped)*(x-ped) for x in raw[0:baseline] ]) / baseline #variance
 	summ = float(sum(raw[baseline:last])) - float(ped * length)
 	
-	return (ts, event.chan, round(summ,2), round(ped,2), round(dped,2))
+	return (round(summ,2), round(ped,2), round(dped,2))
 
 
 def fin(signal=None, frame=None):

@@ -11,7 +11,7 @@ import sys, io, os, time
 import re #for command line options
 import argparse
 import signal
-import curses #printing progress
+import time #printing progress
 
 from parse import Parse
 from integrate import integrate
@@ -99,6 +99,7 @@ class Coinc(object):
 		""" diff -- a maximal timestamp difference for coincidential events. """
 		self.diff = kvargs.pop('diff')
 		self.merger = Merge(*args, **kvargs)
+		self.progress = self.merger.progress
 		
 		
 		self._cached_event = self.merger.next()
@@ -137,7 +138,7 @@ class Coinc(object):
 				cur = next_
 						
 
-	def _next_single(self):
+	def _coinc_next_single(self):
 		''' return a single coincidential event'''	
 		
 		if not self._cached_seq: #if no cached sequences
@@ -147,12 +148,12 @@ class Coinc(object):
 				raise StopIteration
 		
 		return self._cached_seq.pop(0)
-				
+	
 	
 	def __iter__(self):
 		return self
 	
-	next = _coinc_next
+	next = _coinc_next_single
 	__next__ = next
 	
 
@@ -160,36 +161,50 @@ class Coinc(object):
 class CoincFilter(Coinc):
 	""" Return only selected combinations of coincidencs. 
 	"""
-	def __init__(self, readers, sets = [], **kvargs ):
-		self.sets = sets
-		super(CoincFilter, self).__init__(readers, **kvargs)
-		#~ self.next = self._filter_next
+	def __init__(self, readers, trigs = [], **kvargs ):
+		self.trigs = trigs
+		self.sets = trigs.values()
 		
-		#sets = map(set,trigs.values()) #sets of channels for CoincFilter
-		
-	def _filter_next(self):
 		if not self.sets[:]: #check self.sets have __getitem__ and not empty
 			raise ValueError('empty sets')
-			
+		
+		super(CoincFilter, self).__init__(readers, **kvargs)
+		
+		
+	def _filter_next(self):
+		
 		while True:
-			nxt = self._coinc_next()
+			nxt = self._coinc_next() #a list of events
 			if nxt:
 				chans = set( [evt.chan for evt in nxt])
 				
+				ret = []
+				for trig_name, trig_chans in self.trigs.iteritems():
+					if chans.issuperset(trig_chans):
+						ret.extend(zip( [trig_name]*len(nxt), nxt))
 				
-				for set_ in self.sets:
-					if chans.issuperset(set_):
-						return nxt
-					else:
-						break
+				return ret
 			
 			else:
 				raise StopIteration
-		
+	
 	def __iter__(self):
 		return self
 	
-	next=_filter_next
+	
+	def _filter_next_single(self):
+		''' return a single  event'''	
+		
+		if not self._cached_seq: #if no cached sequences
+			self._cached_seq = self._filter_next() #try to get the next sequence
+			
+			if not self._cached_seq:
+				raise StopIteration
+		
+		return self._cached_seq.pop(0)
+	
+	
+	next=_filter_next_single
 	__next__ = next
 
 
@@ -342,44 +357,43 @@ def main():
 			'wait': conf.follow,
 			}
 			
+	
 
 	if conf.trigs:
-		merger = CoincFilter(readers, diff=diff, sets=sets, **merger_args )
-		
-		for seq in merger:
-			if seq:
-				print( [(e.ts, e.chan) for e in seq] )
-				nevents += len(seq)
-			
-			else:
-				break
-				
+		merger = CoincFilter(readers, diff=conf.jitter, trigs=conf.trigs, **merger_args )
 	
 	elif conf.coinc:
-		merger = Coinc(readers, diff=diff, **merger_args)
+		merger = Coinc(readers, diff=conf.jitter, **merger_args)
 		
-		for seq in merger:
-			if seq:
-				for event in seq:
-					print("%d\t%d\t%g\t%g\t%g" % integrate(event))
-					nevents += 1
-			else:
-				break
-				
 	else:
 		merger = Merge(readers, **merger_args)
 	
+	start_time = time.clock()
 	
-	for event in merger:
-		if (nevents % 100000 == 0):
-			if conf.progress:
-				print_progress( merger.progress())
-			else:
-				sys.stderr.write('events: %d' %nevents + '\r')
+	# Printer
+	for evt in merger:
+		trig = None
+		
+		if conf.trigs:
+			trig, evt = evt 
+		
+		if (nevents % 1000 == 0): #once per 1000 events
+			if time.clock() - start_time > 2.0: #but not faster then per N seconds
+				start_time = time.clock()
+				
+				if conf.progress:
+					print_progress( merger.progress())
+				else:
+					sys.stderr.write('events: %d' %nevents + '\r')
 		
 		nevents += 1
 		
-		conf.outfile.write('\t'.join(map(str, integrate(event))) + '\n')
+		outvals = [ evt.ts, evt.chan ]
+		if trig:
+			outvals.extend(trig)
+		outvals.extend(integrate(evt))
+		
+		conf.outfile.write('\t'.join(map(str, outvals)) + '\n')
 		
 	
 	fin()
