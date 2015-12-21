@@ -175,16 +175,21 @@ class CoincFilter(Coinc):
 		
 		while True:
 			nxt = self._coinc_next() #a list of events
+			
 			if nxt:
 				chans = set( [evt.chan for evt in nxt])
 				
 				ret = []
+				
 				for trig_name, trig_chans in self.trigs.iteritems():
 					if chans.issuperset(trig_chans):
 						ret.extend(zip( [trig_name]*len(nxt), nxt))
 				
-				return ret
-			
+				if ret:
+					return ret
+				else:
+					continue
+				
 			else:
 				raise StopIteration
 	
@@ -197,6 +202,7 @@ class CoincFilter(Coinc):
 		
 		if not self._cached_seq: #if no cached sequences
 			self._cached_seq = self._filter_next() #try to get the next sequence
+			
 			
 			if not self._cached_seq:
 				raise StopIteration
@@ -356,8 +362,6 @@ def main():
 	merger_args = {	'delays': conf.delays,
 			'wait': conf.follow,
 			}
-			
-	
 
 	if conf.trigs:
 		merger = CoincFilter(readers, diff=conf.jitter, trigs=conf.trigs, **merger_args )
