@@ -184,7 +184,7 @@ class CoincFilter(Coinc):
 				for trig_name, trig_chans in self.trigs.iteritems():
 					if chans.issuperset(trig_chans):
 						ret.extend(zip( [trig_name]*len(nxt), nxt))
-				
+					
 				if ret:
 					return ret
 				else:
@@ -394,7 +394,7 @@ def main():
 		
 		outvals = [ evt.ts, evt.chan ]
 		if trig:
-			outvals.extend(trig)
+			outvals.append(trig)
 		outvals.extend(integrate(evt))
 		
 		conf.outfile.write('\t'.join(map(str, outvals)) + '\n')
