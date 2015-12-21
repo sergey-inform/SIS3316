@@ -93,12 +93,13 @@ class EventParser(Thread):
 			if self._notify_window.ready:
 				self._notify_window.ready = False
 				wx.PostEvent(self._notify_window, DataReadyEvent(data))
-			
+				print("progress: %2.3f%%" % (100.0 * p.progress()) )
+
 			events.append(data)
 			
 			
 			#TODO: if hist:
-			e_ts, e_chan, e_summ, e_baseline, e_dbaseline =  integrate(data)[0:5]
+			e_summ, e_baseline, e_dbaseline =  integrate(data)[0:5]
 			hist.append(e_summ)
 		
 				
@@ -231,7 +232,7 @@ class WaveformPanel(PlotPanel):
 			if self.f_autoscale:
 				baseline_position = 0.3
 				
-				e_ts, e_chan, e_summ, e_baseline, e_dbaseline =  integrate(event_data)[0:5]
+				e_summ, e_baseline, e_dbaseline =  integrate(event_data)[0:5]
 				
 				new_limits = self.autoscale_baseline(current_limits, max(data), min(data), e_baseline, baseline_position)
 				ax.set_ylim( new_limits)
