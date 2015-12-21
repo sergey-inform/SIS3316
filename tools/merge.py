@@ -7,15 +7,19 @@ Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
 License: GPLv2
 '''
 
-import sys, os, time
+import sys, io, os, time
+import re #for command line options
 import argparse
 import signal
-import io 
+import curses #printing progress
 
-import parse
+from parse import Parse
 from integrate import integrate
 
 from operator import itemgetter 
+
+def errprint(string):
+	sys.stderr.write(str(string) + '\n')
 
 class Merge(object):
 	""" Return events from several sources (Parsers), ordered by timestamp. 
@@ -80,6 +84,9 @@ class Merge(object):
 		
 	def __iter__(self):
 		return self
+		
+	def progress(self):
+		return [r.progress() for r in self.readers]
 	
 	next = _merger_next
 	__next__ = next 	# reqiured for Python 3
@@ -158,6 +165,8 @@ class CoincFilter(Coinc):
 		super(CoincFilter, self).__init__(readers, **kvargs)
 		#~ self.next = self._filter_next
 		
+		#sets = map(set,trigs.values()) #sets of channels for CoincFilter
+		
 	def _filter_next(self):
 		if not self.sets[:]: #check self.sets have __getitem__ and not empty
 			raise ValueError('empty sets')
@@ -194,75 +203,147 @@ def fin(signal=None, frame=None):
 
 	sys.stderr.write("%d events had been processed\n" % nevents)
 	sys.exit(0)	
-	
 
-def main():
-	parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
-	parser.add_argument('infiles', nargs='*', type=str, default=['-'],
-		help="raw data files (stdin by default)")
-	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout,
-		help="redirect output to a file")
-	parser.add_argument('-d','--delay', type=str, action='append', default=[],
-		help="set delay for a certan channel <ch>:<delay> (to subtract from a timestamp value)")
-	parser.add_argument('-f', '--follow', action='store_true',
-		help="wait for a new events, appended data as the infile grows")
-	parser.add_argument('--coinc', action='store_true',
-		help="get only coincidential events")
-	parser.add_argument('-s', '--set', type=str, action='append', default=[],
-		help="get only selected combinations of channels for coincidential events (assumes --coinc)")
-	parser.add_argument('--diff', type=float, default = 2.0,
-		help="maximal difference in timestamps for coincidential events")
-	parser.add_argument('--debug', action='store_true')
-	args = parser.parse_args()
-	
-	
-	debug = args.debug
-	outfile =  args.outfile
-	coinc = args.coinc
-	diff = args.diff
-	follow = args.follow
 
-	delays = {}
+def parse_triggers(lines):
+	""" Parse --trig lines """
+	trigs = {}
+		
+	lines = [re.sub(r"\s+", "", line, flags=re.UNICODE) for line in lines] #strip whitespace
+	lines = [line.partition('#')[0] for line in lines] 	#strip comments
+	lines = filter(None, lines)	#remove empty strings
 	
-	for dstr in args.delay:
-		#try:
-		chan, delay = dstr.split(':')
-		delays[int(chan)]=float(delay)
-	
-	sets = []
-	for set_ in args.set:
-		sets.append( set( map(int, set_.split(',')) ) )
-	
-	infiles = []
+	for line in lines:
+		name, chan_str = line.split(':')
+		channels = set( map(int, chan_str.split(',')) )
+		 
+		if name and channels:
+			trigs[name] = channels
 
-	if args.infiles == ['-']:
-		infiles = [sys.stdin]
+	return trigs
+
+
+def open_readers(infiles):
+	''' Open files, create parser instances.
+	    Return a list of Parser objects.
+	'''
+	fileobjects = []
+	
+	if infiles == ['-']:
+		fileobjects = [sys.stdin]
+	
 	else:
-		for fn in args.infiles:
+		for fn in infiles:
 			try:
-				infiles.append( io.open(fn, 'rb'))
+				fileobjects.append( io.open(fn, 'rb'))
 				
 			except IOError as e:
-				sys.stderr.write('Err: ' + e.strerror+': "' + e.filename +'"\n')
+				errprint('Err: ' + e.strerror+': "' + e.filename +'"\n')
 				exit(e.errno)
-	
+				
 	readers = []
-	for f in infiles:
+	for f in fileobjects:
 		try:
-			readers.append( parse.Parse(f))
+			readers.append( Parse(f))
 		except ValueError as e:
 			sys.stderr.write("Err: %s \n" % e)
 			exit(1)
 	
-	signal.signal(signal.SIGINT, fin)
+	return readers
+	
+def parse_delays(delay_list):
+	delays = {}
+	for dstr in delay_list:
+		chan, delay = dstr.split(':')
+		delays[int(chan)]=float(delay)
+	
+	return delays
+
+	
+def parse_cmdline_args():
+	parser = argparse.ArgumentParser(description=__doc__,
+			formatter_class=argparse.RawTextHelpFormatter)
+	
+	parser.add_argument('infiles', nargs='*', type=str, default=['-'],
+			help="raw data files (stdin by default)")
+		
+	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout,
+			help="redirect output to a file")
+		
+	parser.add_argument('-d','--delay', type=str, action='append', default=[],
+			help="set a delay for a certan channel" "\n"
+			"Delay format: <ch>:<delay> ")
+		
+	parser.add_argument('-f', '--follow', action='store_true',
+			help="wait for a new events, appended data as the infile grows")
+		
+	parser.add_argument('--coinc', action='store_true',
+			help="get only coincidential events")
+		
+	parser.add_argument('-t', '--trig', type=str, action='append', default=[],
+			help="get only selected combinations of channels for coincidential events (assumes --coinc)" "\n"
+			"Trigger format: <name>:<ch1>,<ch2>,...<chN>." "\n"
+			"For example:  'my trig':1,2,8,09 ")
+	
+	parser.add_argument('--trigfile', type=argparse.FileType('r'),
+			help="read combinations of channels from a file (the same format as in --trig option).")
+	
+	parser.add_argument('-j', '--jitter', type=int, default = 2.0,
+			help="maximal difference in timestamps for coincidential events")
+		
+	parser.add_argument('--progress', action='store_true',
+			help="print progress instead of nevents")
+		
+	parser.add_argument('--debug', action='store_true')
+	
+	args = parser.parse_args()
+	
+	
+	# --trig --trigfile
+	triglines = []
+	if args.trigfile:
+		triglines.extend( args.trigfile.read().splitlines())
+	if args.trig:
+		triglines.extend(args.trig)
+		
+	args.trigs = parse_triggers(triglines)
+	args.delays = parse_delays(args.delay)
+	
+	return args
+	
+	
+def print_progress( progress):
+	data = [p * 100.0 for p in progress]
+	strings = [ '%3.1f%%' % d for d in data]
+	line = '\t'.join(strings)
+	
+	sys.stderr.write('progress: ' + line + '\r' )
+
+def main():
 	
 	global nevents
+
+	conf = parse_cmdline_args()
 	
-	merger_args = {	'delays': delays,
-			'wait': follow,
+	if conf.debug:
+		opts = [ str(v) + ' = ' + str(getattr(conf,v)) for v in vars(conf) ]
+		errprint( '\n'.join(opts))
+		
+	if conf.debug:
+		for k,v in conf.trigs.iteritems():
+			errprint("trig %s: %s \n"% (k, tuple(v) ))
+	
+	readers = open_readers(conf.infiles)
+	
+	signal.signal(signal.SIGINT, fin)
+	
+	
+	merger_args = {	'delays': conf.delays,
+			'wait': conf.follow,
 			}
 			
-	if sets:
+
+	if conf.trigs:
 		merger = CoincFilter(readers, diff=diff, sets=sets, **merger_args )
 		
 		for seq in merger:
@@ -274,31 +355,31 @@ def main():
 				break
 				
 	
-	elif coinc:
+	elif conf.coinc:
 		merger = Coinc(readers, diff=diff, **merger_args)
 		
 		for seq in merger:
 			if seq:
-				if len(seq) == len(readers) :
-					for event in seq:
-						print("%d\t%d\t%g\t%g\t%g" % integrate(event))
-						nevents += 1
+				for event in seq:
+					print("%d\t%d\t%g\t%g\t%g" % integrate(event))
+					nevents += 1
 			else:
 				break
 				
 	else:
 		merger = Merge(readers, **merger_args)
 	
-		for event in merger:
-			if (nevents % 100000 == 0):
-				print('events: %d' %nevents)
-			
-			nevents += 1
-			
-			if debug:
-				ts_str  = ('%f' % event.ts).rstrip('0').rstrip('.') #prevent +E in large numbers
-				print("%s\t%d" % ( ts_str, event.chan)) 
-				# print(integrate(event))
+	
+	for event in merger:
+		if (nevents % 100000 == 0):
+			if conf.progress:
+				print_progress( merger.progress())
+			else:
+				sys.stderr.write('events: %d' %nevents + '\r')
+		
+		nevents += 1
+		
+		conf.outfile.write('\t'.join(map(str, integrate(event))) + '\n')
 		
 	
 	fin()

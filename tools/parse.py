@@ -65,6 +65,15 @@ class PeekableObject(object):
 		contents = self.peek(size)
 		self.skip(size)
 		return contents
+		
+	def progress(self):
+		try:
+			sz = os.fstat(self.fileobj.fileno()).st_size
+		except:
+			return None
+		
+		return float(self.pos) / sz
+		
 
 class Parse:
 	'''
@@ -299,6 +308,9 @@ class Parse:
 	def get_channels(self): #REFACTORING NEEDED
 		if self._last_evt:
 			return [self._last_evt.chan]
+			
+	def progress(self):
+		return self._reader.progress()
 
 
 def fin(signal=None, frame=None):
@@ -316,6 +328,9 @@ def main():
 	parser.add_argument('infile', nargs='?', type=str, default='-',
 		help="raw data file (stdin by default)")
 	parser.add_argument('--debug', action='store_true')
+	parser.add_argument('--progress', action='store_true',
+			help="print progress to stderr")
+			
 	args = parser.parse_args()
 	
 
@@ -345,6 +360,11 @@ def main():
 	for event in p:
 		if (nevents % 100000 == 0):
 			print('events: %d' %nevents)
+			
+			if args.progress:
+				print("progress: {0:.1f}%".format( 100.0 * p.progress())) 
+			
+		
 		
 		if debug:
 			print("--- %d ---" % nevents)
