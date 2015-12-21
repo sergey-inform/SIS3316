@@ -183,7 +183,8 @@ class CoincFilter(Coinc):
 				
 				for trig_name, trig_chans in self.trigs.iteritems():
 					if chans.issuperset(trig_chans):
-						ret.extend(zip( [trig_name]*len(nxt), nxt))
+						subset = [evt for evt in nxt if evt.chan in trig_chans]
+						ret.extend(zip( [trig_name]*len(subset), subset))
 					
 				if ret:
 					return ret
