@@ -71,8 +71,10 @@ class PeekableObject(object):
 			sz = os.fstat(self.fileobj.fileno()).st_size
 		except:
 			return None
-		
-		return float(self.pos) / sz
+		if sz:
+			return float(self.pos) / sz
+		else:
+			return 0
 		
 
 class Parse:
