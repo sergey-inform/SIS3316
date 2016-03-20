@@ -382,7 +382,7 @@ def main():
 		if conf.trigs:
 			trig, evt = evt 
 		
-		if (nevents % 1000 == 0): #once per 1000 events
+		if (nevents % 100 == 0): #once per 1000 events
 			if time.clock() - start_time > 2.0: #but not faster then per N seconds
 				start_time = time.clock()
 				
@@ -399,6 +399,7 @@ def main():
 		outvals.extend(integrate(evt))
 		
 		conf.outfile.write('\t'.join(map(str, outvals)) + '\n')
+		conf.outfile.flush()
 		
 	
 	fin()

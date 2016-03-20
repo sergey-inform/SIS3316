@@ -28,12 +28,14 @@ def main():
 	for evt in p:
 		ts = evt.ts
 		ts_sec = float(ts) / freq
-		count +=1
 		
-		if int(ts_sec)  > next_sec:
-			next_sec += 3600
+		if ts_sec > next_sec:
+			next_sec += 600
 			print int(ts_sec)/60, count
-			coutn = 0
+			sys.stdout.flush()
+			count = 0
+		
+		count +=1
 	
 if __name__ == "__main__":
     main()

@@ -34,6 +34,9 @@ def main():
 	parser.add_argument('infile', type=argparse.FileType('r'), default=sys.stdin,
 			help="raw data file (stdin by default)")
 	
+	parser.add_argument('-t','--trig', type=str)
+	parser.add_argument('-c','--chan', type=int)
+	
 	args = parser.parse_args()
 	
 	print args
@@ -65,17 +68,37 @@ def main():
 	for k in sorted(data.keys()):
 		print k, len(data[k])
 	
-	X=15
-	opts = {'range':(0,10000), 'bins':50, 'alpha':0.3,  'normed':1, 'histtype':'step'}
-	#~ plt.hist(data[(X, 'A0')], label='A', **opts)
-	#~ plt.hist(data[(X, 'B0')], label='B', **opts)
-	#~ plt.hist(data[(X, 'C0')], label='C', **opts)
-	plt.hist(data[(X, 'A1')], label='A', **opts)
-	plt.hist(data[(X, 'B1')], label='B', **opts)
-	plt.hist(data[(X, 'C1')], label='C', **opts)
+	
+	X = args.chan
+	trig = args.trig
+
+	opts = {'range':(0,10000), 'bins':50, 'alpha':0.7,  'normed':1, 'histtype':'step'}
+	valsA, bins, xxx = plt.hist(data[(X, 'A'+trig)], label='A', **opts)
+	valsB, bins, xxx = plt.hist(data[(X, 'B'+trig)], label='B', **opts)
+	valsC, bins, xxx = plt.hist(data[(X, 'C'+trig)], label='C', **opts)
+	#plt.hist(data[(X, 'A2')], label='A', **opts)
+	#plt.hist(data[(X, 'B2')], label='B', **opts)
+	#plt.hist(data[(X, 'C2')], label='C', **opts)
+	
+	ax = plt.gca()
+
+	start, end = ax.get_xlim()
+	step = (end-start)/20
+	ax.xaxis.set_ticks(np.arange(start, end, step ))
+
+	plt.grid()
 	plt.legend()
 	plt.show()
 	
+	print 'A'
+	for line in zip(bins, valsA):
+		print line[0], "\t", line[1]
+	print 'B'
+	for line in zip(bins, valsB):
+		print line[0], "\t", line[1]
+	print 'C'
+	for line in zip(bins, valsC):
+		print line[0], "\t", line[1]
 	
 if __name__ == "__main__":
     main()
