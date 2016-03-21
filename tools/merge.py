@@ -164,6 +164,7 @@ class CoincFilter(Coinc):
 	def __init__(self, readers, trigs = [], **kvargs ):
 		self.trigs = trigs
 		self.sets = trigs.values()
+		self.threshold = kvargs.pop('threshold')
 		
 		if not self.sets[:]: #check self.sets have __getitem__ and not empty
 			raise ValueError('empty sets')
@@ -186,8 +187,23 @@ class CoincFilter(Coinc):
 						subset = [evt for evt in nxt if evt.chan in trig_chans]
 						ret.extend(zip( [trig_name]*len(subset), subset))
 					
+				
 				if ret:
+					# Check thresholds 
+					# GLOBAL REFACTORING NEEDED
+					if self.threshold:
+						for trig, evt in ret:
+							val = integrate(evt)[0]
+							if val < self.threshold:
+								sys.stderr.write('chan %d  val %f is below threshold\n' % (evt.chan, val))
+								break
+						else:
+							return ret # if no break in nested loop
+						
+						continue # if nested loop was breaked
+				
 					return ret
+				
 				else:
 					continue
 				
@@ -312,6 +328,9 @@ def parse_cmdline_args():
 	
 	parser.add_argument('-j', '--jitter', type=int, default = 2.0,
 			help="maximal difference in timestamps for coincidential events")
+			
+	parser.add_argument('--threshold', type=float, default = None,
+			help="skip all events in trigger if one of the values is less then threshold")
 		
 	parser.add_argument('--progress', action='store_true',
 			help="print progress instead of nevents")
@@ -365,7 +384,7 @@ def main():
 			}
 
 	if conf.trigs:
-		merger = CoincFilter(readers, diff=conf.jitter, trigs=conf.trigs, **merger_args )
+		merger = CoincFilter(readers, diff=conf.jitter, trigs=conf.trigs, threshold=conf.threshold, **merger_args )
 	
 	elif conf.coinc:
 		merger = Coinc(readers, diff=conf.jitter, **merger_args)
