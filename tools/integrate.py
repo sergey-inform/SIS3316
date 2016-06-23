@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 '''
-Integrate ADC waveforms.
+Integrate ADC waveforms, decoded by parse.py.
    
 Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
 License: GPLv2
@@ -12,35 +12,53 @@ from struct import unpack, error as struct_error
 import io 
 import ctypes 
 import signal
+#~ from numpy import median 
 
-import parse
+from parse import Parse
+
 
 nevents = 0 #a number of processed events
 debug = False #global debug messages
 
+from functools import partial
+_round = partial(round, ndigits=2)
 
-def integrate(event, baseline = 20, length = 0):
-	#~ ts = (event.ts_hi << 32) + (event.ts_lo1 <<16) + event.ts_lo2
-	#~ ts = float(ts)/250000000 #ts in seconds (with 250 MHz)
+def integrate(event, nbaseline = 20, nsignal = None):
+	''' Integrate waveform in event.raw. 
+	baseline: number of averaged samples for baseline
+	length: number of samples after baseline samples for signal
+	
+	Raise ValueError if baseline + length <= nsamples
+	Return tuple (signal_summ, baseline, baseline variance)
+	'''
 	ts = event.ts
-	
 	raw = event.raw
-	
 	nsamples = len(raw)
-	if not length:
-		length = nsamples - baseline
-	
-	if nsamples < baseline + length:
-		raise ValueError("baseline + lenght is less then a number of raw samples")
-	
-	last = baseline + length
-		
-	ped = float(sum(raw[0:baseline]))/baseline
-	dped = sum( [1.0 * (x-ped)*(x-ped) for x in raw[0:baseline] ]) / baseline #variance
-	summ = float(sum(raw[baseline:last])) - float(ped * length)
-	
-	return (round(summ,2), round(ped,2), round(dped,2))
 
+	if nsignal is None:
+		nsignal = nsamples - nbaseline #from baseline to the end
+
+	last = nbaseline + nsignal
+	
+	#~ baseline_median = median(raw[0:nbaseline])
+	baseline_avg = sum(raw[0:nbaseline], 0.0)/nbaseline
+	
+	baseline_var = sum(((x-baseline_avg)**2 for x in raw[0:nbaseline] )) #baseline variance (noise estimation)
+	
+	try:
+		signal_integral = sum(raw[nbaseline:last]) - baseline_avg * nsignal
+
+	except IndexError:
+		if nsamples < nbaseline + nsignal:
+			raise ValueError("N baseline samples + N signal samples is less then a total amount of raw samples" \
+					"chan:%d ts:%d" % event.chan, event.ts)
+		else:
+			raise #IndexError
+	
+	result = signal_integral, baseline_avg, baseline_var
+
+	return map(_round, result) # a list or rounded values
+	
 
 def fin(signal=None, frame=None):
 	global nevents
@@ -51,56 +69,85 @@ def fin(signal=None, frame=None):
 	sys.stderr.write("%d events processed\n" % nevents)
 	sys.exit(0)	
 
+
+
+def check_file_not_exists(parser, arg, mode='wb'):
+    if not os.path.exists(arg):
+        return open(arg, mode)
+    else:
+        parser.error("The file %s already exists!" % arg)
+
+
 def main():
 	parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+
 	parser.add_argument('infile', nargs='?', type=str, default='-',
 		help="raw data file (stdin by default)")
-	parser.add_argument('-o','--outfile', type=argparse.FileType('w'), default=sys.stdout,
+
+	parser.add_argument('-o', '--outfile', type=lambda x: check_file_not_exists(parser, x), default=sys.stdout,
+		metavar='FILE',
 		help="redirect output to a file")
-	parser.add_argument('-b','--baseline', type=int, default=20,
+
+	parser.add_argument('-b','--nbaseline', type=int, default=20,
+		metavar = 'N',
 		help='a number of baseline samples')
-	parser.add_argument('-l','--length', type=int, default=None,
-		help='a number of samples to integrate (after the baseline samples)')
+
+	parser.add_argument('-n','--nsignal', type=int, default=None,
+		metavar = 'N',
+		help='a number of signal samples to integrate (after the baseline samples)')
+
 	parser.add_argument('--csv', action='store_true', 
 		help='output as a .csv')
 
 	parser.add_argument('--debug', action='store_true')
+	
+	parser.add_argument('--progress', action='store_true',
+			help="print progress to stderr")
+
 	args = parser.parse_args()
 	
 	global debug, nevents
 	
-	splitter = ',\t'
-
 	debug = args.debug
 	outfile =  args.outfile
-	baseline = args.baseline
-	length = args.length
+	nbaseline = args.nbaseline
+	nsignal = args.nsignal
 	
-	if args.infile == '-':
-		infile = sys.stdin
-	else:
+	infile = sys.stdin
+	
+	if args.infile != '-':
 		try:
 			infile = io.open(args.infile, 'rb')
 		except IOError as e:
 			sys.stderr.write('Err: ' + e.strerror+': "' + e.filename +'"\n')
 			exit(e.errno)
-			
+	
+
+	splitter = '\t'
 	if args.csv:
 		splitter = ';'
 	
 	try:
-		p = parse.Parse(infile)
+		p = Parse(infile)
 		
 	except ValueError as e:
 		sys.stderr.write("Err: %s \n" % e)
 		exit(1)
 	
-	signal.signal(signal.SIGINT, fin)
+	signal.signal(signal.SIGINT, fin) #catch Ctrl+C
 	
 	nevents = 0
 	for event in p:
 		nevents += 1
-		outfile.write( splitter.join( map(str, integrate(event, baseline, length) )) + '\n')
+		
+		values = [event.ts, event.chan]
+		values.extend( integrate(event, nbaseline, nsignal))
+		
+		if args.progress and (nevents % 10000 == 0):
+			sys.stderr.write("progress: {0:.1f}%\r".format( 100.0 * p.progress())) 
+		
+		line = splitter.join(map(str, values)) + '\n'
+		outfile.write(line)
 		
 	fin()
 

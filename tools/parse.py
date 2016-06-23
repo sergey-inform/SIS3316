@@ -329,11 +329,15 @@ def fin(signal=None, frame=None):
 	
 def main():
 	parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
+	
 	parser.add_argument('infile', nargs='?', type=str, default='-',
 			help="raw data file (stdin by default)")
+	
 	parser.add_argument('--outfile', '-o', type=str, default=None,
 			help="Output file, default is stdout.")
+	
 	parser.add_argument('--debug', action='store_true')
+	
 	parser.add_argument('--progress', action='store_true',
 			help="print progress to stderr")
 			
@@ -347,15 +351,19 @@ def main():
 	infile = sys.stdin #default
 	outfile = sys.stdout #default
 	
+	if args.outfile and os.path.exists(args.outfile): #prevent data loss by mistake
+		sys.stderr.write('error: outfile already exists!\n')
+		exit(1)
+	
 	try: 
 		if args.infile != '-':
 			infile = io.open(args.infile, 'rb')
-
+		
 		if args.outfile:
 			outfile = io.open(args.outfile, 'wb')
 
 	except IOError as e:
-			sys.stderr.write('Err: ' + e.strerror+': "' + e.filename +'"\n')
+			sys.stderr.write('Err: ' + str(e.strerror) +': "' + str(e.filename) +'"\n')
 			exit(e.errno)
 
 	try:
@@ -365,7 +373,7 @@ def main():
 		sys.stderr.write("Err: %s \n" % e)
 		exit(1)
 	
-	signal.signal(signal.SIGINT, fin)
+	signal.signal(signal.SIGINT, fin) #catch Ctrl+C
 	
 	nevents = 0
 	
