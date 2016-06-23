@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 '''
-Parse SIS3316 ADC raw (binary) data.
+Use this executable for debug only! For actual data parsing use integrate.py.
+
+Functions to parse SIS3316 ADC raw (binary) data.
 Bytes which doesn't look like ADC data will be skipped.
    
 Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
@@ -328,7 +330,9 @@ def fin(signal=None, frame=None):
 def main():
 	parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
 	parser.add_argument('infile', nargs='?', type=str, default='-',
-		help="raw data file (stdin by default)")
+			help="raw data file (stdin by default)")
+	parser.add_argument('--outfile', '-o', type=str, default=None,
+			help="Output file, default is stdout.")
 	parser.add_argument('--debug', action='store_true')
 	parser.add_argument('--progress', action='store_true',
 			help="print progress to stderr")
@@ -339,16 +343,21 @@ def main():
 	global debug, nevents
 
 	debug = args.debug
-
-	if args.infile == '-':
-		infile = sys.stdin
-	else:
-		try:
+	
+	infile = sys.stdin #default
+	outfile = sys.stdout #default
+	
+	try: 
+		if args.infile != '-':
 			infile = io.open(args.infile, 'rb')
-		except IOError as e:
+
+		if args.outfile:
+			outfile = io.open(args.outfile, 'wb')
+
+	except IOError as e:
 			sys.stderr.write('Err: ' + e.strerror+': "' + e.filename +'"\n')
 			exit(e.errno)
-			
+
 	try:
 		p = Parse(infile)
 		
@@ -359,14 +368,18 @@ def main():
 	signal.signal(signal.SIGINT, fin)
 	
 	nevents = 0
+	
+	outfile.write("# <timestamp> <channel> <min(data)> {<data[0..N]>-<min(data)>}\n") #format
+	
 	for event in p:
-		if (nevents % 100000 == 0):
-			print('events: %d' %nevents)
-			
-			if args.progress:
-				print("progress: {0:.1f}%".format( 100.0 * p.progress())) 
-			
+		data_min = min(event.raw)
+		data_residuals = (x-data_min for x in event.raw[0:])
+		data_residuals_str = ','.join(map(str, data_residuals))
 		
+		outfile.write("%d %d %d %s\n" %(event.ts, event.chan, data_min, data_residuals_str ))
+		
+		if args.progress and (nevents % 10000 == 0):
+			sys.stderr.write("progress: {0:.1f}%\r".format( 100.0 * p.progress())) 
 		
 		if debug:
 			print("--- %d ---" % nevents)
@@ -375,8 +388,6 @@ def main():
 				print( "%s: %s" % (a[0], getattr(event, a[0])) )
 				
 		nevents += 1
-			
-			
 	fin()
 	
 if __name__ == "__main__":
