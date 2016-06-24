@@ -13,6 +13,7 @@ import io
 import ctypes 
 import signal
 #~ from numpy import median 
+from math import sqrt
 
 from parse import Parse
 
@@ -43,7 +44,8 @@ def integrate(event, nbaseline = 20, nsignal = None):
 	#~ baseline_median = median(raw[0:nbaseline])
 	baseline_avg = sum(raw[0:nbaseline], 0.0)/nbaseline
 	
-	baseline_var = sum(((x-baseline_avg)**2 for x in raw[0:nbaseline] )) #baseline variance (noise estimation)
+	baseline_sigma = sqrt(sum(((x-baseline_avg)**2 for x in raw[0:nbaseline] ))/nbaseline)
+			#baseline standard deviation (noise estimation)
 	
 	try:
 		signal_integral = sum(raw[nbaseline:last]) - baseline_avg * nsignal
@@ -55,7 +57,7 @@ def integrate(event, nbaseline = 20, nsignal = None):
 		else:
 			raise #IndexError
 	
-	result = signal_integral, baseline_avg, baseline_var
+	result = signal_integral, baseline_avg, baseline_sigma
 
 	return map(_round, result) # a list or rounded values
 	
