@@ -5,6 +5,8 @@ Integrate ADC waveforms, decoded by parse.py.
 Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
 License: GPLv2
 '''
+#TODO: wait for new data if --follow flag is set
+
 
 import sys,os
 import argparse
@@ -73,11 +75,19 @@ def fin(signal=None, frame=None):
 
 
 
-def check_file_not_exists(parser, arg, mode='wb'):
-    if not os.path.exists(arg):
-        return open(arg, mode)
-    else:
-        parser.error("The file %s already exists!" % arg)
+def check_file_not_exists(parser, fpath, mode='wb'):
+	
+	if os.path.isfile(fpath):
+		if os.path.getsize(fpath):
+			parser.error("%s is not empty, preventing overwrite!" % fpath)
+		else: 
+			#exists but empty
+			return open(fpath, mode)
+			
+	if os.path.exists(fpath):
+		parser.error("%s already exists!" % fpath)
+        
+	return open(fpath, mode)
 
 
 def main():
