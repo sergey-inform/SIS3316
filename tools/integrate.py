@@ -107,6 +107,10 @@ def main():
 	parser.add_argument('-n','--nsignal', type=int, default=None,
 		metavar = 'N',
 		help='a number of signal samples to integrate (after the baseline samples)')
+		
+	parser.add_argument('--skip', type=int, default=0,
+		metavar = 'N',
+		help='skip first N events (useful if first timestamps are not consequent)')
 
 	parser.add_argument('--csv', action='store_true', 
 		help='output as a .csv')
@@ -149,8 +153,13 @@ def main():
 	signal.signal(signal.SIGINT, fin) #catch Ctrl+C
 	
 	nevents = 0
+	skip_n = args.skip
+	
 	for event in p:
 		nevents += 1
+		
+		if skip and nevents <= skip:
+			continue
 		
 		values = [event.ts, event.chan]
 		values.extend( integrate(event, nbaseline, nsignal))
