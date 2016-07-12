@@ -153,7 +153,7 @@ def main():
 	signal.signal(signal.SIGINT, fin) #catch Ctrl+C
 	
 	nevents = 0
-	skip_n = args.skip
+	skip = args.skip
 	
 	for event in p:
 		nevents += 1
