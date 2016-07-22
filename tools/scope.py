@@ -99,7 +99,8 @@ class EventParser(Thread):
 			
 			
 			#TODO: if hist:
-			e_summ, e_baseline, e_dbaseline =  integrate(data)[0:5]
+			vals =  integrate(data)
+			e_summ, e_baseline = vals[2], vals[5]
 			hist.append(e_summ)
 		
 				
@@ -232,7 +233,8 @@ class WaveformPanel(PlotPanel):
 			if self.f_autoscale:
 				baseline_position = 0.3
 				
-				e_summ, e_baseline, e_dbaseline =  integrate(event_data)[0:5]
+				vals = integrate(event_data)
+				e_summ, e_baseline =  vals[2], vals[5]
 				
 				new_limits = self.autoscale_baseline(current_limits, max(data), min(data), e_baseline, baseline_position)
 				ax.set_ylim( new_limits)
