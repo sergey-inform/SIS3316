@@ -15,7 +15,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import sis3316
 
 
-
 def readout_loop(dev, destinations, opts = {}, quiet = False, print_stats = False ):
 	""" Perform endless readout loop. 
 	
