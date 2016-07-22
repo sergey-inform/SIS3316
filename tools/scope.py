@@ -17,7 +17,7 @@ import math #round
 import numpy as np
 
 from parse import Parse
-from integrate import integrate
+from integrate import integrate, Features
 
 import matplotlib	#TODO: put this inside GUI init
 matplotlib.use('WXAgg')
@@ -100,7 +100,7 @@ class EventParser(Thread):
 			
 			#TODO: if hist:
 			vals =  integrate(data)
-			e_summ, e_baseline = vals[2], vals[5]
+			e_summ, e_baseline = vals.summ, vals.bl
 			hist.append(e_summ)
 		
 				
@@ -234,7 +234,7 @@ class WaveformPanel(PlotPanel):
 				baseline_position = 0.3
 				
 				vals = integrate(event_data)
-				e_summ, e_baseline =  vals[2], vals[5]
+				e_summ, e_baseline =  vals.summ, vals.bl
 				
 				new_limits = self.autoscale_baseline(current_limits, max(data), min(data), e_baseline, baseline_position)
 				ax.set_ylim( new_limits)

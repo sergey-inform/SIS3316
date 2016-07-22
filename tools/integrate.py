@@ -22,7 +22,9 @@ from operator import itemgetter
 from math import sqrt
 
 from parse import Parse
-import numpy as np
+
+from collections import namedtuple
+
 
 nevents = 0 #a number of processed events
 debug = False #global debug messages
@@ -30,8 +32,10 @@ debug = False #global debug messages
 from functools import partial
 _round = partial(round, ndigits=2)
 
-def integrate(event, nbaseline = 20, nsignal = None, bl_var=0, samples=0):
-	''' Integrate event waveform. Calculates the values:
+Features = namedtuple('Feature', ['ts', 'chan', 'summ', 'max', 'max_idx', 'bl', 'bl_var', 'len'])
+
+def integrate(event, nbaseline = 20, nsignal = None, fields = ()):
+	''' Integrate event waveform. Calculates the features:
 		summ:  signal integral without baseline
 		max:  maximum value
 		max-index:  an index of maximum value
@@ -43,13 +47,11 @@ def integrate(event, nbaseline = 20, nsignal = None, bl_var=0, samples=0):
 		a number  for baseline
 	nsignal: 
 		a number of samples after baseline samples for signal
-	bl_var:
-		if True, calculate baseline variance
-	samples:
-		if True, calculate a number of singnal samples
-	
+	fields:
+		a list of field names of `Feature` to calculate
+		
 	Raise ValueError if baseline + length <= nsamples
-	Returns tuple(<ts> <chan> <summ> <max> <max-index> <bl> <bl-variance> <samples>)
+	Returns Features namedtuple.
 	'''
 	raw = event.raw
 	nsamples = len(raw)
@@ -58,17 +60,16 @@ def integrate(event, nbaseline = 20, nsignal = None, bl_var=0, samples=0):
 		nsignal = nsamples - nbaseline #from baseline to the end
 	end = nbaseline + nsignal
 	
-	
 	# baseline
 	baseline = sum(raw[0:nbaseline], 0.0)/nbaseline
-	
-	# bl-variance
-	if bl_var:
+
+	bl_var = None
+	if 'bl_var' in fields:
 		bl_var = sqrt(sum(((x-baseline)**2 for x in raw[0:nbaseline] ))/nbaseline)
 	
-	# max, max-index
-	max_index, max_value = max(enumerate(raw), key=itemgetter(1))
-	
+	max_index, max_value = None, None
+	if 'len' in fields or 'max' in fields or 'max_idx' in fields:
+		max_index, max_value = max(enumerate(raw), key=itemgetter(1))
 	
 	# summ
 	try:
@@ -81,18 +82,19 @@ def integrate(event, nbaseline = 20, nsignal = None, bl_var=0, samples=0):
 		else:
 			raise
 	# samples
-	if samples:
+	samples = None 
+	if 'len' in fields:
 		left = max_index
 		right = max_index
 		
-		if max_index:
-			for l in range(max_index-1, -1, -1):  # {max, max-1 ... 1, 0 }
+		if max_index == 0:
+			left = 0
+		else:
+			for l in range(max_index-1, -1, -1):  # {max-1 ... 1, 0 }
 				if raw[l] > baseline:
 					left = l
 				else:
 					break
-		else:
-			left = 0
 				
 		for r in range(max_index, nsamples):
 			if raw[r] > baseline:
@@ -103,9 +105,16 @@ def integrate(event, nbaseline = 20, nsignal = None, bl_var=0, samples=0):
 		samples = 1 + right - left
 	
 	#TODO: return named tuple
-	return (int(event.ts), int(event.chan), _round(summ), _round(max_value-baseline), max_index, _round(baseline), _round(bl_var), samples)
+	return Features(
+		ts = int(event.ts),
+		chan = int(event.chan),
+		summ = _round(summ),
+		max = _round(max_value-baseline) if 'max' in fields else None,
+		max_idx = max_index,
+		bl = _round(baseline),
+		bl_var = _round(bl_var) if 'bl_var' in fields else None,
+		len = samples)
 	
-
 
 def check_file_not_exists(parser, fpath, mode='wb'):
 	
@@ -156,7 +165,7 @@ def main():
 		help='save baseline standard deviation (to estimate noise)')
 		
 	parser.add_argument('--save-max', action='store_true',
-		help='save maximum bin number')
+		help='save the value and the bin number of absolute maximum')
 		
 	parser.add_argument('--save-max-idx', action='store_true',
 		help='save sample index of the maximum value')
@@ -168,7 +177,6 @@ def main():
 		help="print progress to stderr")
 
 	args = parser.parse_args()
-	sys.stderr.write(str(args) + '\n')
 
 	global debug, nevents
 	
@@ -210,26 +218,25 @@ def main():
 	# Parse events
 	nevents = 0
 	
-	# --save-bl-var
-	bl_var = args.save_bl_var
-
-	# --save-len
-	samples = args.save_len
+	fields = list(Features._fields)
 	
-	names = ('timestamp', 'channel', 'summ', 'max', 'max-idx', 'bl', 'bl-var', 'len')
-	tosave = (
-		True,  # ts
-		True,  # chan
-		True,  # summ
-		args.save_max,
-		args.save_max_idx,
-		args.save_bl,
-		bl_var,
-		samples,
-		)
-		
+	if not args.save_max:
+		fields.remove('max')
+	
+	if not args.save_max_idx:
+		fields.remove('max_idx')
+	
+	if not args.save_bl:
+		fields.remove('bl')
+	
+	if not args.save_bl_var:
+		fields.remove('bl_var')
+	
+	if not args.save_len:
+		fields.remove('len')
+	
 	# Print file header
-	outfile.write('# ' + splitter.join([ n for i,n in enumerate(names) if tosave[i] ]) +'\n')
+	outfile.write('# ' + splitter.join(fields) +'\n')
 	
 	for event in p:
 		nevents += 1
@@ -237,15 +244,12 @@ def main():
 		if skip and nevents <= skip:
 			continue
 		
-		vals = integrate(event, nbaseline, nsignal,
-				bl_var = bl_var,
-				samples = samples,
-			)
+		vals = integrate(event, nbaseline, nsignal, fields)
 		
 		if args.progress and (nevents % 10000 == 0):
 			sys.stderr.write("progress: {0:.1f}%\r".format( 100.0 * p.progress())) 
 		
-		vals = [ v for i,v in enumerate(vals) if tosave[i] ]
+		vals = [getattr(vals, k) for k in fields ]
 		 
 		line = splitter.join( map(str, vals) ) 
 		outfile.write(line + '\n')
