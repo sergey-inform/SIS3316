@@ -74,6 +74,13 @@ The next one use the previous ones.
 * hist <events file> --bins --range --bin-count => histogram.txt
 * fit --gauss --kern --landau <events file> => val, err, khi2
 
+
+Notes
+------
+You can forward UDP traffic from one network to another with: 
+    stone -n 10.0.0.1:3333/udp 2222/udp -- 192.168.100.1:2222/udp 3333/udp
+    # forwards requests from 192.168.100.1:2222 (PC) to 10.0.0.1:3333 (ADC Node)
+
 Scope
 -----
 The Scope contains a GUI to use SIS3316 as a 16-channel digital oscilloscope.
