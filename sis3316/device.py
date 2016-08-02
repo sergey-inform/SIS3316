@@ -333,6 +333,10 @@ class Sis3316(object):
 			ok = False
 		
 		return ok
+		
+	def reboot(self):
+		""" Reset the registers to power-on state."""
+		self.write(SIS3316_ADC_FPGA_BOOT, 0b1)
 	
 	def reset(self):
 		""" Reset the registers to power-on state."""
