@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-'''
+# -*- coding: utf-8 -*-
+"""
 Integrate ADC waveforms, decoded by parse.py.
 
 Output each event as text values:
@@ -7,7 +8,7 @@ Output each event as text values:
    
 Author: Sergey Ryzhikov (sergey-inform@ya.ru), 2015
 License: GPLv2
-'''
+"""
 #TODO: wait for new data if --follow flag is set
 
 

@@ -80,14 +80,19 @@ class Sis3316(object):
 		
 
 	def configure(self, id = 0x00):
-		""" Prepere after restart. id -- first 8 bits in channel header field. """
+		""" Prepere after restart.
+		id: first 8 bits in channel header field. 
 		
+		"""
 		if not isinstance(id, int):
 			raise ValueError('id should be an interger 0...256')
 			
 		for grp in self.groups:
 			grp.header = id & 0xFF
 			grp.clear_link_error_latch_bits()
+
+		for chan in self.channels:
+			chan.dac_offset  = 0x8000
 		
 		return self.status
 
