@@ -33,7 +33,7 @@ msg = '\x10\x04\x00\x00\x00' # request module_id
 try:
 	sent = sock.sendto(msg, server_address)
 	ready = select.select([sock], [], [],
-		0.1,	#timeout_in_seconds
+		0.5,	#timeout_in_seconds
 		)
 	
 	if ready[0]:

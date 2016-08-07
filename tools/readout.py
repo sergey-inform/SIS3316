@@ -168,6 +168,7 @@ def main():
 	dev.open()
 	if not args.quiet:
 		sys.stderr.write("ADC id: %s, serial: %s, temp: %d" %( str(dev.id), hex(dev.serno), dev.temp) + '°C\n' )
+		sys.stderr.write("---\n")
 	dev.configure()  # set channel numbers and so on.
 	dev.mem_toggle()  # flush the device memory to not to read a large chunk of old data
 
