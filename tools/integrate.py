@@ -129,9 +129,21 @@ def check_file_not_exists(parser, fpath, mode='wb'):
 	if os.path.exists(fpath):
 		parser.error("%s already exists!" % fpath)
         
+	makedirs(fpath)
 	return io.open(fpath, mode)
 
 
+def makedirs(path):
+    """ Create directories for `path` (like 'mkdir -p'). """
+    if not path:
+        return
+    folder = os.path.dirname(path)
+    if folder:
+        try:
+            os.makedirs(folder)
+        except:
+            pass
+        
 def main():
 	parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
 
@@ -255,6 +267,7 @@ def main():
 		line = splitter.join( map(str, vals) ) 
 		outfile.write(line + '\n')
 
+        sys.stderr.write("{}: ".format(outfile.name))
 	fin()
 
 
