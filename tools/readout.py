@@ -172,6 +172,7 @@ def main():
 	dev.configure()  # set channel numbers and so on.
 	dev.disarm()
 	dev.arm()
+	dev.ts_clear()
 	dev.mem_toggle()  # flush the device memory to not to read a large chunk of old data
 
 	# Open files
