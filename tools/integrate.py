@@ -172,12 +172,12 @@ def main():
                 help="redirect output to a file")
 
         parser.add_argument('-b','--baseline', type=str, default="0:20",
-                metavar = 'N',
+                metavar = 'A:B',
                 help='a range for baseline samples (int means from the beginning, negative int means from the end)'
 		)
 
         parser.add_argument('-s','--signal', type=str, default=None,
-                metavar = 'N',
+                metavar = 'C:D',
                 help='a range for signal samples to integrate (default: from baseline to the end, for negative baseline is from 0 to baseline)'
 		)
                 
