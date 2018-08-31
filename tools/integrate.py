@@ -37,7 +37,8 @@ Features = namedtuple('Feature', ['ts', 'chan', 'summ', 'max', 'max_idx', 'bl', 
 
 
 def avg(vals):
-        return sum(vals, 0.0) / len(vals)
+	v = list(vals)
+        return sum(v, 0.0) / len(v)
 
 # for backward compatibility
 def integrate(event, nbaseline = 20, nsignal = None, features = ()):
@@ -88,6 +89,7 @@ def rintegrate(event, rbaseline = (0,20), rsignal = None, features = ()):
 
         # baseline
         baseline = avg(raw_bl)  # simple average
+	baseline = max(raw_bl)  # use max instead #FIXME
 
         bl_var = None
         if 'bl_var' in features:
