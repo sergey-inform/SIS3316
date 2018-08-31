@@ -33,7 +33,7 @@ debug = False #global debug messages
 from functools import partial
 _round = partial(round, ndigits=2)
 
-Features = namedtuple('Feature', ['ts', 'chan', 'summ', 'max', 'max_idx', 'bl', 'bl_var', 'len'])
+Features = namedtuple('Feature', ['ts', 'chan', 'summ', 'min', 'max', 'max_idx', 'bl', 'bl_var', 'len'])
 
 
 def avg(vals):
@@ -53,6 +53,7 @@ def integrate(event, nbaseline = 20, nsignal = None, features = ()):
 def rintegrate(event, rbaseline = (0,20), rsignal = None, features = ()):
         ''' Integrate event waveform. Calculates the features:
                 summ:  signal integral without baseline
+                min:  minimum value
                 max:  maximum value
                 max-index:  an index of maximum value
                 bl:  baseline
@@ -89,7 +90,6 @@ def rintegrate(event, rbaseline = (0,20), rsignal = None, features = ()):
 
         # baseline
         baseline = avg(raw_bl)  # simple average
-	baseline = max(raw_bl)  # use max instead #FIXME
 
         bl_var = None
         if 'bl_var' in features:
@@ -98,6 +98,11 @@ def rintegrate(event, rbaseline = (0,20), rsignal = None, features = ()):
         max_index, max_value = None, None
         if 'len' in features or 'max' in features or 'max_idx' in features:
                 max_index, max_value = max(enumerate(raw), key=itemgetter(1))
+
+        min_value = None
+        if 'min' in features:
+                min_value = min(raw)
+
         
         # summ
         summ = sum(raw_sig) - baseline * len(raw_sig)
@@ -129,6 +134,7 @@ def rintegrate(event, rbaseline = (0,20), rsignal = None, features = ()):
                 ts = int(event.ts),
                 chan = int(event.chan),
                 summ = _round(summ),
+                min = _round(min_value-baseline) if 'min' in features else None,
                 max = _round(max_value-baseline) if 'max' in features else None,
                 max_idx = max_index,
                 bl = _round(baseline),
@@ -197,6 +203,9 @@ def main():
         
         parser.add_argument('--save-bl-var', action='store_true',
                 help='save baseline standard deviation (to estimate noise)')
+                
+        parser.add_argument('--save-min', action='store_true',
+                help='save the value of absolute minimum')
                 
         parser.add_argument('--save-max', action='store_true',
                 help='save the value and the bin number of absolute maximum')
@@ -271,6 +280,9 @@ def main():
         
         if not args.save_max:
                 fields.remove('max')
+
+        if not args.save_min:
+                fields.remove('min')
         
         if not args.save_max_idx:
                 fields.remove('max_idx')
