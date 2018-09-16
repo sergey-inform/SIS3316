@@ -71,4 +71,5 @@ print(arr)
 #plot
 n, bins, patches = plt.hist(arr, 100, range=args.range,  facecolor='g',
 alpha=0.75, log=args.log)
+plt.title("{}".format(args.infile[0].name))
 plt.show()
