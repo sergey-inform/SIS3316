@@ -11,11 +11,7 @@ except Exception as e:
     print('Import error:', e)
     exit(1)
 
-
-#TODO:
-# feature: specify multiple files
-# feature: specify normalization coefficient for each file (custom parser for)
-#
+#TODO: enable per-file parameters: file.txt,col=3,range=0:100,label='hehe',fmt='g',s=12345,...
 
 class ParseRangeAction(argparse.Action):
     ''' range is a number or a string "A:B", where A and B are numbers
@@ -83,6 +79,7 @@ parser.add_argument('-r', '--range', type=str, default=None, action=ParseRangeAc
 parser.add_argument('-s', '--scales', type=str, default=None, action=ParseScalesAction)
 parser.add_argument('-l', '--log', action='store_true')
 parser.add_argument('-n', '--nbins', type=int, default=100)
+
 
 args = parser.parse_args()  # TODO: use parse_intermixed_args when python3.7 will become ubiquitous
 #print(args)
