@@ -25,6 +25,7 @@ from math import sqrt
 from parse import Parse
 
 from collections import namedtuple
+from collections import Counter
 
 
 nevents = 0 #a number of processed events
@@ -89,7 +90,13 @@ def rintegrate(event, rbaseline = (0,20), rsignal = None, features = ()):
 
 
         # baseline
-        baseline = avg(raw_bl)  # simple average
+	#c = Counter(raw_bl)
+	#moda = c.most_common(1)
+	#if moda:
+	#	baseline = moda[0][0]
+	#else:
+	
+	baseline = avg(raw_bl)  # simple average
 
         bl_var = None
         if 'bl_var' in features:

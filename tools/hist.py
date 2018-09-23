@@ -51,7 +51,7 @@ class ParseRangeAction(argparse.Action):
 
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('infile', nargs='*', type=argparse.FileType('r'),
+parser.add_argument('infile', nargs='?', type=argparse.FileType('r'),
         default=sys.stdin)
 parser.add_argument('-c', '--column', type=int, default=0)
 parser.add_argument('-r', '--range', type=str, default=None, action=ParseRangeAction)
@@ -61,7 +61,8 @@ parser.add_argument('-l', '--log', action='store_true')
 args = parser.parse_args()
 #print(args)
 
-arr = np.loadtxt(args.infile[0], comments='#', usecols=args.column)
+arr = np.loadtxt(args.infile, comments='#',
+	 usecols=[args.column])
 
 print(type(arr))
 print('len: {}'.format(len(arr)))
