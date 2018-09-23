@@ -11,11 +11,7 @@ except Exception as e:
     print('Import error:', e)
     exit(1)
 
-
-#TODO:
-# feature: specify multiple files
-# feature: specify normalization coefficient for each file (custom parser for)
-#
+#TODO: enable per-file parameters: file.txt,col=3,range=0:100,label='hehe',fmt='g',s=12345,...
 
 class ParseRangeAction(argparse.Action):
     ''' range is a number or a string "A:B", where A and B are numbers
@@ -50,26 +46,73 @@ class ParseRangeAction(argparse.Action):
         setattr(namespace, self.dest, (left, right))
 
 
+class ParseScalesAction(argparse.Action):
+#TODO: make ParseScaleAction (single) when parse_intermixed_args became available.
+    ''' Scale the histograms according to given values.
+    '''
+    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+        if nargs is not None:
+            raise ValueError("nargs not allowed")
+        super(ParseScalesAction, self).__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        
+        if not values:
+            return None
+        
+        vals = [float(x) for x in values.split(',')]
+        max_ = max(vals)
+        vals = [max_/x for x in vals]
+
+        if not vals:
+            raise ValueError('scales is not a comma separated list of floats')
+
+        setattr(namespace, self.dest, vals)
+
+
+
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('infile', nargs='?', type=argparse.FileType('r'),
+parser.add_argument('infile', nargs='*', type=argparse.FileType('r'),
         default=sys.stdin)
 parser.add_argument('-c', '--column', type=int, default=0)
 parser.add_argument('-r', '--range', type=str, default=None, action=ParseRangeAction)
+parser.add_argument('-s', '--scales', type=str, default=None, action=ParseScalesAction)
 parser.add_argument('-l', '--log', action='store_true')
+parser.add_argument('-n', '--nbins', type=int, default=100)
 
 
-args = parser.parse_args()
+args = parser.parse_args()  # TODO: use parse_intermixed_args when python3.7 will become ubiquitous
 #print(args)
 
-arr = np.loadtxt(args.infile, comments='#',
-	 usecols=[args.column])
+if args.scales and len(args.scales) != len(args.infile):
+    raise ValueError("a number of scales should be the same as the number of input files")
 
-print(type(arr))
-print('len: {}'.format(len(arr)))
+print('scales: {}'.format(args.scales))
 
-print(arr)
+#TODO: cycle drawing colours
 
-#plot
-n, bins, patches = plt.hist(arr, 100, range=args.range,  facecolor='g',
-alpha=0.75, log=args.log)
+for filen, infile in enumerate(args.infile):
+    arr = np.loadtxt(infile, comments='#', usecols=args.column)
+
+    #print(type(arr))
+    print('{} len: {}'.format(infile.name, len(arr)))
+    #print(arr)
+    nbins = args.nbins
+
+    # We can't just plt.hist because we want to scale histograms,
+    # so building histograms step by step.
+    if args.scales:
+        weights = [args.scales[filen]] * len(arr)
+    else:
+        weights = None
+
+    hist, bin_edges = np.histogram(arr, bins=100, range=args.range, weights=weights)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.
+
+    plt.step(bin_centers, hist, alpha=0.75, label=infile.name)
+
+if args.log:
+    plt.semilogy()
+
+plt.legend()
 plt.show()
