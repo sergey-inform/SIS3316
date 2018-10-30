@@ -91,7 +91,6 @@ def rintegrate(event, rbaseline = (0,20), rsignal = None, features = ()):
 
         # baseline
         baseline = avg(raw_bl)  # simple average
-        baseline = max(raw_bl)  #FIXME: delme
 
         bl_var = None
         if 'bl_var' in features:
