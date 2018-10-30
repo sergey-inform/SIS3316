@@ -92,7 +92,7 @@ print('scales: {}'.format(args.scales))
 #TODO: cycle drawing colours
 
 for filen, infile in enumerate(args.infile):
-    arr = np.loadtxt(infile, comments='#', usecols=args.column)
+    arr = np.loadtxt(infile, comments='#', usecols=[args.column])
 
     #print(type(arr))
     print('{} len: {}'.format(infile.name, len(arr)))
@@ -106,7 +106,7 @@ for filen, infile in enumerate(args.infile):
     else:
         weights = None
 
-    hist, bin_edges = np.histogram(arr, bins=100, range=args.range, weights=weights)
+    hist, bin_edges = np.histogram(arr, bins=args.nbins, range=args.range, weights=weights)
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.
 
     plt.step(bin_centers, hist, alpha=0.75, label=infile.name)
