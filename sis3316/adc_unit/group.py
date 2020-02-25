@@ -18,14 +18,14 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-from common import *
+from .common import *
 from ..common import * 
-from registers import *
-from channel import Adc_channel
-from trigger import Adc_trigger
+from .registers import *
+from .channel import Adc_channel
+from .trigger import Adc_trigger
 
 class Adc_group(object):
-	""" An ADC fpga. """
+	""" ADC GROUP """
 	
 	__slots__ = ('channels', 'idx', 'gid', 'sum_trig', 'board') # Restrict attribute list (foolproof).
 	
@@ -87,8 +87,8 @@ class Adc_group(object):
 	@property
 	def status(self):
 		stat = self.board.read(SIS3316_ADC_GRP(STATUS_REG, self.gid))
-		if stat != 0x130018:
-			return stat
+		if stat not in (0x130018, 0x130118): # I think 0x130118 just means data link speed flag is up, and is therefore ok 
+                    return stat
 		return True
 	
 	
@@ -147,7 +147,7 @@ class Adc_group(object):
 		scales = {0xB: 1.992, 0x0: 1.75 , 0x15: 1.50, 0x10: 1.383}
 		
 		if value not in scales:
-			translations = ['{0} => {1}V'.format(hex(k),v) for k,v in scales.iteritems()]
+			translations = ['{0} => {1}V'.format(hex(k),v) for k,v in scales.items()]
 			raise ValueError("Scale preset value is one of {}.".format(translations))
 		
 		ena = self.board._get_field(reg, 24, 0b1)
@@ -268,7 +268,7 @@ class Adc_group(object):
 		mask = 0xffFFFF * 4
 		if value & ~mask:
 			raise ValueError("Words, not bytes! The mask is {0}. '{1}' given".format(hex(mask), value) )
-		self.board._set_field(reg, value/4, 0, mask/4)
+		self.board._set_field(reg, value//4, 0, mask//4)
 	
 	@property
 	def gate_window(self):
@@ -308,7 +308,7 @@ class Adc_group(object):
 		if value & ~mask:
 			raise ValueError("The mask is {0}. '{1}' given".format(hex(mask), value) )
 			
-		self.board._set_field(reg, value/2, offset, mask/2)
+		self.board._set_field(reg, value//2, offset, mask//2)
 	
 	
 	@property
@@ -327,7 +327,7 @@ class Adc_group(object):
 		if value & ~mask:
 			raise ValueError("The mask is {0}. '{1}' given".format(hex(mask), value) )
 			
-		self.board._set_field(reg, value/2, offset, mask/2)
+		self.board._set_field(reg, value//2, offset, mask//2)
 		
 	_auto_properties = {
 		'raw_start':       Param(0xFFFe,  0, RAW_DATA_BUFFER_CONFIG_REG, " The start index of the raw data buffer which will be copy to the memory. "),
@@ -361,5 +361,5 @@ class Adc_group(object):
 		'accum8_window': Param(0x1FF , 16, ACCUMULATOR_GATE8_CONFIG_REG, "Accumulator-8 length."),
 		}
 
-for name, prop in Adc_group._auto_properties.iteritems():
+for name, prop in Adc_group._auto_properties.items():
 	setattr(Adc_group, name, auto_property(prop))
