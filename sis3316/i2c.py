@@ -19,7 +19,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-from common import *
+from .common import *
 
 I2C_ACK  	= 1<< 8
 I2C_START	= 1<< 9

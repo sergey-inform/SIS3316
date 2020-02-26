@@ -18,11 +18,12 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-from common import *
+from .common import *
 from ..common import * 
-from registers import *
+from .registers import *
 
 class Adc_trigger(object):
+	"""ADC TRIGGER"""
 
 	__slots__ = ('container', 'cid', 'gid', 'idx', 'board') # Restrict attribute list (foolproof).
 
@@ -59,5 +60,5 @@ class Adc_trigger(object):
 	help = common_help
 	
 	
-for name, prop in Adc_trigger._auto_properties.iteritems():
+for name, prop in Adc_trigger._auto_properties.items():
 	setattr(Adc_trigger, name, auto_property(prop, cid_offset = 0x10))

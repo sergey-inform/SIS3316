@@ -81,7 +81,7 @@ def common_help(self):
 						for flag,doc in doclines] )
 				)
 
-	out = self.__doc__ + '\n'
+	out = str(self.__doc__) + '\n'
 
 	if hasattr(self, '_help_properties'):
 		out += printprop('Properties', self._help_properties)
@@ -94,6 +94,6 @@ def common_help(self):
 		
 	if hasattr(self, '_conf_flags'):
 		out += printflags(self._conf_flags)
-	
-	sys.stderr.write(out)
+
+	sys.stdout.write(out)
 

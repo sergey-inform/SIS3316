@@ -18,13 +18,14 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-from common import *
+from .common import *
 from ..common import * 
-from registers import *
-from trigger import Adc_trigger
+from .registers import *
+from .trigger import Adc_trigger
 
 class Adc_channel(object):
-	
+	"""ADC CHANNEL"""
+
 	__slots__ = ('group', 'idx', 'cid', 'trig', 'gid', 'unit_noidx', 'board') # Restrict attribute list (foolproof).
 
 	_conf_params = [
@@ -53,7 +54,6 @@ class Adc_channel(object):
 		
 	def bank_read(self, bank, dest, wcount, woffset = 0):
 		""" Read channel memory. """
-			
 		if woffset + wcount > const.MEM_BANK_SIZE:
 			raise ValueError("out of channel bound")
 		
@@ -258,5 +258,5 @@ class Adc_channel(object):
 		}
 		
 
-for name, prop in Adc_channel._auto_properties.iteritems():
+for name, prop in Adc_channel._auto_properties.items():
 	setattr(Adc_channel, name, auto_property(prop, cid_offset = 0x4))

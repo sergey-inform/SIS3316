@@ -21,8 +21,8 @@
 
 #Data transfer logic
 
-from common import * 
-from registers import *
+from .common import * 
+from .registers import *
 
 BITBUSY= 1<<31
 

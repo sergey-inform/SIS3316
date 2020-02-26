@@ -320,7 +320,7 @@ class HistPanel(PlotPanel):
 		
 	def DrawHist(self):
 		global hist
-		print 'events:',  len(events)
+		print ('events:',  len(events))
 		
 		if self.paused:
 			return
