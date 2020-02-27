@@ -473,10 +473,10 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
         
         # Network congestion window:
         wcwnd_limit = FIFO_READ_LIMIT
-        wcwnd = wcwnd_limit/2
-        wcwnd_max = wcwnd_limit/2
+        wcwnd = wcwnd_limit//2
+        wcwnd_max = wcwnd_limit//2
         
-        wmtu = 1440/4 #TODO: determine MTU automatically (can be jumbo frames)
+        wmtu = 1440//4 #TODO: determine MTU automatically (can be jumbo frames)
         
         wfinished = 0
         binitial_index = dest.index
@@ -508,7 +508,7 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
                     self._ack_fifo_read(dest, wnum) # <- exceptions are most probable here 
                     
                     if wcwnd_max > wcwnd: #recovery after congestion
-                        wcwnd += (wcwnd_max - wcwnd)/2 
+                        wcwnd += (wcwnd_max - wcwnd)//2 
                         
                     else:    #probe new maximum
                         wcwnd = min(wcwnd_limit, wcwnd + wmtu + (wcwnd - wcwnd_max) ) 
@@ -521,14 +521,14 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
                 except self._TimeoutExcept:
                     # hardfail (network congestion)
                     wcwnd_max = wcwnd
-                    wcwnd = wcwnd / 2 # Reduce window by 50%
+                    wcwnd = wcwnd // 2 # Reduce window by 50%
                     #~ print wcwnd, '%0.3f%%'% (1.0 * wfinished/nwords  * 100,) , 'cwnd reduced'
                     break
             
                 finally: # Note: executes before `break'
                     bfinished = (dest.index - binitial_index)
                     assert bfinished % 4 == 0, "Should read a four-byte words. %d, init %d" %(bfinished, binitial_index)
-                    wfinished = bfinished/4
+                    wfinished = bfinished//4
                 
             #end while
             if wcwnd is 0:

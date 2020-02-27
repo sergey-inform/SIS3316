@@ -174,16 +174,24 @@ def main():
 
     if not args.quiet:
         sys.stderr.write("ADC id: %s, serial: %s, temp: %d" %( str(dev.id), hex(dev.serno), dev.temp) + '°C\n' )
-        sys.stderr.write(str(dev._readout_status()) + '\n')
+        sys.stderr.write( str(dev._readout_status()) + '\n')
         sys.stderr.write("---\n")
 
     # Open files
     files_ = [io.FileIO( name, 'w') for name in outfiles] 
 
     # Perform readout
-    destinations = zip(channels, files_)
+    destinations = list(zip( get_iterable(channels), get_iterable(files_) ))  # Python3 has changed zip behavior, need to wrap in list()
     readout_loop(dev, destinations, opts, quiet=args.quiet, print_stats=args.stats)
 
+
+def get_iterable(x):
+    """ Allows lists of one object to be zipped """
+    from collections import Iterable
+    if isinstance(x, Iterable):
+        return x
+    else:
+        return(x,)
 
 if __name__ == "__main__":
     main()
