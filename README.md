@@ -16,7 +16,7 @@ Or you can run this command in linux terminal:
      
 Library Usage
 -------------
-At first set up a network connection with your SIS3316 module. Since sis3316 doesn't support ARP protocol, you must tell it's mac address to your system by hand. Read details in SIS3316 Ethernet Maual. 
+At first set up a network connection with your SIS3316 module. Since sis3316 doesn't support ARP protocol, you must tell it's mac address to your system by hand. Read details in SIS3316 Ethernet Manual. 
   
 For example: add a line `00:00:56:31:60:XX NN.NN.NN.NN` (XX -- serial No. of your device in hex, NN.NN.NN.NN -- the device IP address)
 to your /etc/ethers file and run:
@@ -44,6 +44,10 @@ Example:
 Tools
 -----
 The tools directory contains some ready-to-use scripts for sis3316 to perform configuration, readout and some basic data analysis. They were made for the cosmics tests of the PANDA "Shaslik" calorimeter prototype (the work was supported by a grant from the [“FAIR-Russia Research Centre”](http://frrc.itep.ru/) in 2015). 
+
+**conf.py** -- Outputs/loads in config file for the struck daq. config.in is a sample file (though the settings are not very good)
+
+**help.py** -- Prints out possible config file options
    
 **readout.py** -- perform a device readout, write raw data to the binary files (a file per channel).
 
@@ -74,6 +78,9 @@ The next one use the previous ones.
 * hist <events file> --bins --range --bin-count => histogram.txt
 * fit --gauss --kern --landau <events file> => val, err, khi2
 
+VME FPGA Version
+------------------
+Ethernet UDP protocol has changed with VME FPGA Version V3316-2008 and it is not compatible with previous versions. There is now a 1-byte packet identifier and a 'read last packet' retry command to aid in lost packet recovery. However, according to the SIS3316 Ethernet Manual, lost packet behavior has not been observed on Linux/Mac. Therefore, packet recovery has not been implemented (only a response error will be raised).  If you are on VME FPGA 2007 or earlier, change the variable VME_FPGA_VERSION_IS_0008_OR_HIGHER to False in /sis3316/sis3316_udp.py. 
 
 Notes
 ------
@@ -84,3 +91,4 @@ You can forward UDP traffic from one network to another with:
 Scope
 -----
 The Scope contains a GUI to use SIS3316 as a 16-channel digital oscilloscope.
+This requires the wxPython module. For dependencies check [here](https://github.com/wxWidgets/Phoenix/blob/master/README.rst#prerequisites)

@@ -172,7 +172,7 @@ class WaveformPanel(PlotPanel):
 		
 		self.figure = Figure((2.0, 2.0), dpi=dpi)
 		self.axes = self.figure.add_subplot(111)
-		self.axes.set_axis_bgcolor('black')
+		self.axes.set_facecolor('black')
 		self.axes.set_title('Signal Waveform', size=FONT_SIZE+1)
 		
 		self.f_autoscale = True
@@ -320,7 +320,7 @@ class HistPanel(PlotPanel):
 		
 	def DrawHist(self):
 		global hist
-		print 'events:',  len(events)
+		print ('events:',  len(events))
 		
 		if self.paused:
 			return

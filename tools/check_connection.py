@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import socket, select
 import sys
@@ -18,6 +18,8 @@ parser.add_argument('port', type=int,
 	nargs="?", default=1234,	#optional
 	help='sis3316 destination port number')
 
+parser.add_argument('-vme', '--vme', type=int, choices=[2008,2007], default=2008, help='VME FPGA Version')
+
 args = parser.parse_args()
 #~ print args
 
@@ -28,31 +30,36 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind(('', args.port ))
 sock.setblocking(0) #guarantee that recv will not block internally
 
-msg = '\x10\x04\x00\x00\x00' # request module_id
+# VME FPGA version 2008 and later include a 1 byte packet identifier
+if args.vme == 2007:
+        msg = b'\x10\x04\x00\x00\x00' # request module_id
+        unpackFormat = '<cIHH'
+else:
+        msg = b'\x10\x00\x04\x00\x00\x00' # request module_id + packet identifier
+        unpackFormat = '<cBIHH'
+
 
 try:
 	sent = sock.sendto(msg, server_address)
-	ready = select.select([sock], [], [],
-		0.5,	#timeout_in_seconds
-		)
+	ready = select.select([sock], [], [], 0.5,)#timeout_in_seconds
 	
 	if ready[0]:
 		resp, server = sock.recvfrom(1024) 
 		#print resp, server
-		print 'raw responce: ', resp.encode('hex_codec')
-		data = struct.unpack('<cIHH', resp)
+		print ('raw responce: ', resp)
+		data = struct.unpack(unpackFormat, resp) 
 		
-		print 'OK', '( id:', hex(data[3]),', rev:', hex(data[2]), ')'
+		print ('OK', '( id:', hex(data[-1]),', rev:', hex(data[-2]), ')')
 	
 	else:
-		print "Fail: timed out." 
-		print "Forgot to add mac address record to /etc/ethers and to run `arp -f'?"
+		print ("Fail: timed out.") 
+		print ("Forgot to add mac address record to /etc/ethers and to run 'arp -f'?")
 
 except struct.error:
-	print 'Fail:', 'wrong format of responce.'
+	print ('Fail:', 'wrong format of responce.')
 
-except socket.gaierror, e:
-	print 'Fail:', str(e)
+except socket.gaierror as e:
+	print ('Fail:', str(e))
 
 finally:
     sock.close()

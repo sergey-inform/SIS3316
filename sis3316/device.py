@@ -21,9 +21,9 @@
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 
-from common import * 
-from registers import *
-import adc_unit as adcunit
+from .common import * 
+from .registers import *
+from . import adc_unit as adcunit
 
 #TODO: wrapper to translate configuration options 
 
@@ -168,12 +168,12 @@ class Sis3316(object):
 		
 		i2c.stop()
 		
-		for freq, values in self._freq_presets.iteritems():
+		for freq, values in self._freq_presets.items():
 			if values == tuple(reply[0:len(values)]):
 				self._freq = freq
 				return freq
 				
-		print 'Unknown clock configuration, Si570 RFREQ_7PPM values:', map(hex,reply)
+		print ('Unknown clock configuration, Si570 RFREQ_7PPM values:', map(hex,reply))
 		
 		
 		
@@ -295,7 +295,7 @@ class Sis3316(object):
 		""" A list of device configuration <flags>."""
 		ret = []
 		fdict = self._conf_flags
-		for fname, fparam in fdict.iteritems():
+		for fname, fparam in fdict.items():
 			data = self.read(fparam.reg)
 			if get_bits(data, fparam.offset , 0b1):
 				ret.append(fname)
@@ -309,7 +309,7 @@ class Sis3316(object):
 		if unknown:
 			raise ValueError("Unknown flags: {0}.".format(list(unknown)))
 		
-		for fname, fparam in fdict.iteritems():
+		for fname, fparam in fdict.items():
 			if fname in flaglist:
 				self._set_field(fparam.reg, True,  fparam.offset, 0b1) #set flag
 			else:

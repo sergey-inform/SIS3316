@@ -1,4 +1,4 @@
-from registers import SIS3316_ADC_GRP
+from .registers import SIS3316_ADC_GRP
 from collections import namedtuple
 Param = namedtuple('param', 'mask, offset, reg, doc')
 
