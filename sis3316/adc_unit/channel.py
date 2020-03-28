@@ -192,7 +192,10 @@ class Adc_channel(object):
 	
 	@property
 	def event_format_mask(self):
-		""" Set event format field: 0-> peak high and accum1..6, 1-> accum7..8, 2->MAW values, 3->reserved' """
+		""" Set event format field (accepts integer argument):
+                    [0b1]-> peak high and accum1..6, [0b10]-> accum7..8, [0b100]->MAW values, [0b1000]->Energy values
+                    Example: '12' = 0b1100 -> Both Energy and MAW values
+                    """
 		reg = SIS3316_ADC_GRP(DATAFORMAT_CONFIG_REG, self.gid)
 		offset = 8 * self.cid
 		mask = 0xF
