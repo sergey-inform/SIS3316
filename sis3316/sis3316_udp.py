@@ -27,6 +27,7 @@ from random import randrange
 import time #FIXME
 from functools import wraps
 import re
+from numpy import uint8
 
 from .common import Sis3316Except, sleep, usleep #FIXME
 from . import device, i2c, fifo, readout
@@ -43,7 +44,7 @@ SIS3316_FPGA_ADC_GRP_MEM_OFFSET     = 0x100000
 
 VME_READ_LIMIT  = 64    #words
 VME_WRITE_LIMIT = 64    #words
-FIFO_READ_LIMIT    = 0x40000/4    #bytes->words
+FIFO_READ_LIMIT    = 0x40000//4    #bytes->words
 FIFO_WRITE_LIMIT = 256    #words
 
 def retry_on_timeout(f):
@@ -269,7 +270,7 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
             return pack(format, *args)
         else:
             # pack msg w/ packetID
-            return pack('<B' + format[1:], self.packet_identifier%256, *args)
+            return pack('<B' + format[1:], self.packet_identifier, *args)
     
     def _unpack_from(self, format,  resp):
         """ Unpack a response packet from sis3316 """
@@ -296,9 +297,9 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 
     def _check_packetID(self, packetID):
         """ Checks packet ID and increments to next packet number """
-        if packetID != self.packet_identifier%256:
+        if packetID != self.packet_identifier:
             raise self._PacketsLossExcept #TODO Send relisten command with (xEE) instead
-        self.packet_identifier+=1
+        self.packet_identifier = uint8(self.packet_identifier + 1)
                 
 
 # ----------- Interface  ----------------------
