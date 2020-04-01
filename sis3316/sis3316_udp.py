@@ -27,7 +27,6 @@ from random import randrange
 import time #FIXME
 from functools import wraps
 import re
-from numpy import uint8, int64
 
 from .common import Sis3316Except, sleep, usleep #FIXME
 from . import device, i2c, fifo, readout
@@ -209,9 +208,9 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
         # Check input.
         try:
             if not all(isinstance(item, int) for item in addrlist):
-                raise TypeError('addrlist type error')
-            if not all(isinstance(item, (int,int64)) for item in datalist):
-                raise TypeError('datalist type error')
+                raise
+            if not all(isinstance(item, (int,int)) for item in datalist):
+                raise
         except:
             raise TypeError('Function accepts two lists of integers.')
         
@@ -270,7 +269,7 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
             return pack(format, *args)
         else:
             # pack msg w/ packetID
-            return pack('<B' + format[1:], self.packet_identifier, *args)
+            return pack('<B' + format[1:], self.packet_identifier%256, *args)
     
     def _unpack_from(self, format,  resp):
         """ Unpack a response packet from sis3316 """
@@ -297,9 +296,9 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 
     def _check_packetID(self, packetID):
         """ Checks packet ID and increments to next packet number """
-        if packetID != self.packet_identifier:
+        if packetID != self.packet_identifier%256:
             raise self._PacketsLossExcept #TODO Send relisten command with (xEE) instead
-        self.packet_identifier = uint8(self.packet_identifier + 1)
+        self.packet_identifier+=1
                 
 
 # ----------- Interface  ----------------------

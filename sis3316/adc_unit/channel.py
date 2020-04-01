@@ -22,7 +22,6 @@ from .common import *
 from ..common import * 
 from .registers import *
 from .trigger import Adc_trigger
-from numpy import int64
 
 class Adc_channel(object):
 	"""ADC CHANNEL"""
@@ -62,10 +61,10 @@ class Adc_channel(object):
 			raise ValueError("bank should be 0 or 1")
 		
 		if bank == 1:
-			woffset = int64(woffset + 1<<24) # Bank select
+			woffset += 1<<24 # Bank select
 		
 		if self.cid % 2 == 1:
-			woffset = int64(woffset + 1<<25) # Channel location in bank address space
+			woffset += 1<<25 # Channel location in bank address space
 			
 		if self.cid < 2:
 			mem_no = 0
