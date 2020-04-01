@@ -4,6 +4,8 @@
       "flags": [
         "intern_trig"
       ],
+      "event_format_mask": 0,
+      "event_maw_ena": false,
       "gain": 1,
       "termination": true
     },
@@ -122,7 +124,8 @@
       "gate_window": 1000,
       "maw_delay": 50,
       "pileup_window": 100,
-      "raw_window": 1000,
+      "raw_window": 0,
+      "maw_window": 0,
       "repileup_window": 100
     },
     "1": {
@@ -132,7 +135,7 @@
       "gate_window": 1000,
       "maw_delay": 50,
       "pileup_window": 100,
-      "raw_window": 1000,
+      "raw_window": 0,
       "repileup_window": 100
     },
     "2": {
@@ -142,7 +145,7 @@
       "gate_window": 1000,
       "maw_delay": 50,
       "pileup_window": 100,
-      "raw_window": 1000,
+      "raw_window": 0,
       "repileup_window": 100
     },
     "3": {
@@ -152,7 +155,7 @@
       "gate_window": 1000,
       "maw_delay": 50,
       "pileup_window": 100,
-      "raw_window": 1000,
+      "raw_window": 0,
       "repileup_window": 100
     }
   },
