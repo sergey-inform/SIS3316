@@ -173,7 +173,11 @@ def main():
     dev.mem_toggle()  # flush the device memory to not to read a large chunk of old data
 
     if not args.quiet:
-        sys.stderr.write("ADC id: %s, serial: %s, temp: %d" %( str(dev.id), hex(dev.serno), dev.temp) + '°C\n' )
+        if 'jumbo_ena' in getattr(dev,'flags'):
+            jumbo = True
+        else:
+            jumbo = False
+        sys.stderr.write("ADC id: %s, serial: %s, temp: %d °C, jumbo_frame: %s" %( str(dev.id), hex(dev.serno), dev.temp, jumbo) + '\n' )
         sys.stderr.write( str(dev._readout_status()) + '\n')
         sys.stderr.write("---\n")
 

@@ -45,10 +45,8 @@ Tools
 -----
 The tools directory contains some ready-to-use scripts for sis3316 to perform configuration, readout and some basic data analysis. They were made for the cosmics tests of the PANDA "Shaslik" calorimeter prototype (the work was supported by a grant from the [“FAIR-Russia Research Centre”](http://frrc.itep.ru/) in 2015). 
 
-**conf.py** -- Outputs/loads in config file for the struck daq. config.in is a sample file (though the settings are not very good)
+**conf.py** -- Outputs/loads in config file for the struck daq. config.in is a sample file. Run with the --documentation flag to see possible config file options
 
-**help.py** -- Prints out possible config file options
-   
 **readout.py** -- perform a device readout, write raw data to the binary files (a file per channel).
 
 
@@ -80,7 +78,7 @@ The next one use the previous ones.
 
 VME FPGA Version
 ------------------
-Ethernet UDP protocol has changed with VME FPGA Version V3316-2008 and it is not compatible with previous versions. There is now a 1-byte packet identifier and a 'read last packet' retry command to aid in lost packet recovery. However, according to the SIS3316 Ethernet Manual, lost packet behavior has not been observed on Linux/Mac. Therefore, packet recovery has not been implemented (only a response error will be raised).  If you are on VME FPGA 2007 or earlier, change the variable VME_FPGA_VERSION_IS_0008_OR_HIGHER to False in /sis3316/sis3316_udp.py. 
+Ethernet UDP protocol has changed with VME FPGA Version V3316-2008 and it is not compatible with previous versions. There is now a 1-byte identifier in all communication packets. If you are on VME FPGA 2007 or earlier, change the variable VME_FPGA_VERSION_IS_0008_OR_HIGHER to False in /sis3316/sis3316_udp.py. 
 
 Notes
 ------
