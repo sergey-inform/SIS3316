@@ -40,16 +40,15 @@ Example:
 >>>dev.close() #enable access via VME
 ```
 
-
 Tools
 -----
 The tools directory contains some ready-to-use scripts for sis3316 to perform configuration, readout and some basic data analysis. They were made for the cosmics tests of the PANDA "Shaslik" calorimeter prototype (the work was supported by a grant from the [“FAIR-Russia Research Centre”](http://frrc.itep.ru/) in 2015). 
 
+**check_connection.py** -- Basic socket communication, not dependent on sis3316 library, to see if the sis3316 is online
+
 **conf.py** -- Outputs/loads in config file for the struck daq. config.in is a sample file. Run with the --documentation flag to see possible config file options
 
-**readout.py** -- perform a device readout, write raw data to the binary files (a file per channel).
-
-
+**readout.py** -- perform a device readout, write raw data to the binary files (a file per channel). Make sure your jumbo frame size is set correctly in sis3316/sis3316_udp.py
    
 Each readout operation preceeded by a header:
 ```
