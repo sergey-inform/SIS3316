@@ -27,6 +27,7 @@ from random import randrange
 import time #FIXME
 from functools import wraps
 import re
+from numpy import uint8
 
 from .common import Sis3316Except, sleep, usleep #FIXME
 from . import device, i2c, fifo, readout
@@ -43,7 +44,7 @@ SIS3316_FPGA_ADC_GRP_MEM_OFFSET     = 0x100000
 
 VME_READ_LIMIT  = 64    #words
 VME_WRITE_LIMIT = 64    #words
-FIFO_READ_LIMIT    = 0x40000/4    #bytes->words
+FIFO_READ_LIMIT    = 0x40000//4    #bytes->words
 FIFO_WRITE_LIMIT = 256    #words
 
 def retry_on_timeout(f):
@@ -70,14 +71,14 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
     default_timeout = 0.1    #seconds
     retry_max_timeout = 100 #ms
     retry_max_count = 10 
-    jumbo = 4096         # set this to your ethernet's jumbo-frame size
+    jumbo = 9000         # set this to your ethernet's jumbo-frame size
     VME_FPGA_VERSION_IS_0008_OR_HIGHER = True # VME FPGA version V_3316-2008 and higher
 
     def __init__ (self, host, port=5768):
         self.hostname = host
         self.address = (host, port)
         self.packet_identifier=0    # Unsigned char packet identifier for new VME FPGA access protocol
-        
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.bind( ('', port ) )
         sock.setblocking(0) #guarantee that recv will not block internally
@@ -86,6 +87,7 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
         
         for parent in self.__class__.__bases__: # all parent classes
             parent.__init__(self)
+
         
     def __del__(self):
         """ Run this manually if you need to close socket."""
@@ -269,8 +271,8 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
             return pack(format, *args)
         else:
             # pack msg w/ packetID
-            return pack('<B' + format[1:], self.packet_identifier%256, *args)
-    
+            return pack('<B' + format[1:], self.packet_identifier, *args)
+
     def _unpack_from(self, format,  resp):
         """ Unpack a response packet from sis3316 """
         """ Will call self._check_packetID and increment packet ID counter """
@@ -296,9 +298,9 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
 
     def _check_packetID(self, packetID):
         """ Checks packet ID and increments to next packet number """
-        if packetID != self.packet_identifier%256:
+        if packetID != self.packet_identifier:
             raise self._PacketsLossExcept #TODO Send relisten command with (xEE) instead
-        self.packet_identifier+=1
+        self.packet_identifier = uint8(self.packet_identifier + 1)
                 
 
 # ----------- Interface  ----------------------
@@ -475,8 +477,12 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
         wcwnd_limit = FIFO_READ_LIMIT
         wcwnd = wcwnd_limit//2
         wcwnd_max = wcwnd_limit//2
+       
         
-        wmtu = 1440//4 #TODO: determine MTU automatically (can be jumbo frames)
+        if 'jumbo_ena' in getattr(self,'flags'):
+            wmtu = 8192//4 
+        else:
+            wmtu = 1440//4
         
         wfinished = 0
         binitial_index = dest.index
@@ -501,7 +507,7 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
             while wfinished < nwords:
                 
                 try: 
-                    wnum = min(nwords - wfinished, FIFO_READ_LIMIT, wcwnd)
+                    wnum = int(min(nwords - wfinished, FIFO_READ_LIMIT, wcwnd))
 
                     msg = b''.join(( b'\x30', self._pack('<HI', wnum-1, fifo_addr) ))
                     self._req(msg)
@@ -512,17 +518,17 @@ class Sis3316(device.Sis3316, i2c.Sis3316, fifo.Sis3316, readout.Sis3316):
                         
                     else:    #probe new maximum
                         wcwnd = min(wcwnd_limit, wcwnd + wmtu + (wcwnd - wcwnd_max) ) 
-                    
+                
                 except self._UnorderedPacketExcept:
-                    # sotffail: some packets accidently was dropped
-                    #~ print "<< unordered", wcwnd
+                    # softfail: some packets accidentally dropped
+                    # print ("UnorderedPacketExcept<< ", wcwnd)
                     break
                     
                 except self._TimeoutExcept:
                     # hardfail (network congestion)
                     wcwnd_max = wcwnd
                     wcwnd = wcwnd // 2 # Reduce window by 50%
-                    #~ print wcwnd, '%0.3f%%'% (1.0 * wfinished/nwords  * 100,) , 'cwnd reduced'
+                    # print ("TimeoutExcept<< ", wcwnd, '%0.3f%%'% (1.0 * wfinished/nwords  * 100,) , 'cwnd reduced')
                     break
             
                 finally: # Note: executes before `break'

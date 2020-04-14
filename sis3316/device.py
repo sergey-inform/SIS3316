@@ -35,7 +35,7 @@ class Sis3316(object):
 	__metaclass__ = ABCMeta # abstract class
 
 	
-	_conf_params = [ 'freq', 'leds_mode', 'leds', 'clock_source', 'flags'] 
+	_conf_params = [ 'freq', 'leds_mode', 'leds', 'clock_source','udp_transmit_gap', 'flags'] 
 	_conf_flags = {
 		'nim_ui_as_veto' 	: Flag(12, SIS3316_NIM_INPUT_CONTROL_REG, "NIM Input UI as Veto Enable"),
 		'nim_ui_function'	: Flag(11, SIS3316_NIM_INPUT_CONTROL_REG, "NIM Input UI Function"),
@@ -54,6 +54,8 @@ class Sis3316(object):
 		'extern_ts_clr_ena'	: Flag(10, SIS3316_ACQUISITION_CONTROL_STATUS, "External timestamp clear enable."),
 		'trig_as_veto'	 	: Flag( 9, SIS3316_ACQUISITION_CONTROL_STATUS, "Trigger as veto"),
 		'extern_trig_ena'	: Flag( 8, SIS3316_ACQUISITION_CONTROL_STATUS, "Enable Key/External trigger."),
+
+		'jumbo_ena'	        : Flag( 4, SIS3316_UDP_PROTOCOL_CONFIG, "Enable Jumbo Frame for larger packets and faster read from daq"),
 		}
 	
 	_help_methods = [ 'reset', 'fire', 'ts_clear', 'read', 'write', 'read_list', 'write_list']
@@ -245,6 +247,17 @@ class Sis3316(object):
 					" '{0}' given.".format(value))
 		self._set_field(SIS3316_CONTROL_STATUS, value, 4, 0b111)
 		
+	@property
+	def udp_transmit_gap(self):
+		""" Gap time between udp transfer packets. Takes int [0..15]. See ethernet manual """
+		return self._get_field(SIS3316_UDP_PROTOCOL_CONFIG, 0, 0xF)
+		
+	@udp_transmit_gap.setter
+	def udp_transmit_gap(self, value):
+		""" Gap time between udp transfer packets. Takes int [0..15]. See ethernet manual """
+		if value & ~0xF:
+			raise ValueError("Takes an int [0..15]. See ethernet manual")
+		self._set_field(SIS3316_UDP_PROTOCOL_CONFIG, value, 0, 0xF)
 	
 	@property
 	def id(self):
@@ -347,7 +360,7 @@ class Sis3316(object):
 		self.write(SIS3316_KEY_TRIGGER,1)
 	
 	def ts_clear(self):
-		""" Clear timestamp. """
+		""" Clear timestamp. Don't forget to set 'extern_ts_clr_ena' flag"""
 		self.write(SIS3316_KEY_TIMESTAMP_CLEAR, 0)
 	
 	class _TimeoutExcept(Sis3316Except):

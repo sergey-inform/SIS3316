@@ -47,7 +47,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('host', help='hostname or IP address')
     parser.add_argument('port', type=int, nargs="?", default=1234, help='UDP port number')
-    parser.add_argument('-c','--conf', nargs=1, dest = 'conffile',  type=argparse.FileType('r'), help='Load configuration from file (default = config.in)')
+    parser.add_argument('--documentation', action='store_true', help='Prints out documentation for possible arguments in config file') 
+    parser.add_argument('-c','--conf', nargs=1, dest = 'conffile',  type=argparse.FileType('r'), help='Load configuration from file')
     args = parser.parse_args()
     
     dev = sis3316.Sis3316_udp(args.host, args.port)
@@ -59,6 +60,14 @@ def main():
         #~ print('serial:', dev.serno)
         #~ print('temp:', dev.temp, u"\u2103")
 
+    if args.documentation:
+        dev.help()
+        dev.groups[0].help()
+        dev.channels[0].help()
+        sys.stdout.write('\033[1mflags\033[0m\n\t' + ', '.join([str(x) for x in dev.channels[0].ch_flags]) + '\n\n')
+        dev.triggers[0].help()
+        sys.exit()
+
     if not args.conffile: #no conf file provided
         config = dump_conf(dev)
         print( json.dumps(config, indent=2, sort_keys=True))
@@ -66,6 +75,7 @@ def main():
         config = json.load(args.conffile[0])
         conf_load(dev, config)
         print('ok.')
+    return
     
 
 if __name__ == "__main__":
