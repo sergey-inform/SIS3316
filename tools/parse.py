@@ -90,7 +90,8 @@ class Parse:
     MAX_AVG = 65534
     MAX_EVENT_LENGTH = (18 + 1022) * 4 + (MAX_RAW + MAX_AVG) * 2 # (hdr+maw_data) * word_sz + (raw+avg) * halfword_sz
     
-    
+    MAW_LENGTH = None # MAW length not auto detected, fill this to match your config file if you want to parse it 
+
     def __init__(self, fileobj ):
         #check fieldnames
         self._format_cache = None #cached format
@@ -252,11 +253,11 @@ class Parse:
             # and the next timestamp.
             #
             if fMAW:
-                #TODO: look up for the next timestamp ( or timestamp + 1)
-                #n_maw=...
-                #~ pos += 4 * n_maw
-                #c_format.append( ('maw', ctypes.c_int32 * n_maw) )
-                pass
+                if self.MAW_LENGTH:
+                    n_maw=self.MAW_LENGTH
+                    pos += 4 * n_maw
+                    c_format.append( ('maw', ctypes.c_int32 * n_maw) )
+                
             
         except struct_error:
             # occures than len(header[slice]) is less then expected
