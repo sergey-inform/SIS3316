@@ -5,6 +5,7 @@
         "intern_trig"
       ],
       "gain": 1,
+      "event_format_mask": 8,
       "termination": true
     },
     "1": {
@@ -162,22 +163,18 @@
   },
   "sum_triggers": {
     "0": {
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6
     },
     "1": {
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6
     },
     "2": {
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6
     },
     "3": {
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6
     }
@@ -186,130 +183,114 @@
     "0": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "1": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "2": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "3": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "4": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "5": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "6": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "7": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "8": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "9": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "10": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "11": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "12": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "13": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "14": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     },
     "15": {
       "cfd_ena": 3,
       "enable": 1,
-      "high_threshold": 134223728,
       "maw_gap_time": 6,
       "maw_peaking_time": 6,
-      "threshold": 134218328
+      "threshold": 134218728
     }
   }
 }

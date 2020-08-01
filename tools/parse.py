@@ -54,6 +54,7 @@ class PeekableObject(object):
             self.buf += contents
         
         sz = min(len(self.buf), size)
+        
         return self.buf[:sz]
             
     def skip(self, size):
@@ -90,7 +91,8 @@ class Parse:
     MAX_AVG = 65534
     MAX_EVENT_LENGTH = (18 + 1022) * 4 + (MAX_RAW + MAX_AVG) * 2 # (hdr+maw_data) * word_sz + (raw+avg) * halfword_sz
     
-    
+    MAW_LENGTH = 1000 # MAW length not auto detected, fill this to match your config file if you want to parse it 
+
     def __init__(self, fileobj ):
         #check fieldnames
         self._format_cache = None #cached format
@@ -133,7 +135,8 @@ class Parse:
                 
             except ValueError as e:
                 if debug:
-                    print('skip %s, pos:%d, data:%s' % (str(e), reader.pos, binascii.hexlify(reader.peek(26)) ) )
+                    #print('skip %s, pos:%d, data:%s' % (str(e), reader.pos, binascii.hexlify(reader.peek(26)) ) )
+                    print('skip %s, pos:%d, data:%s' % (str(e), reader.pos, reader.peek(26)) )
                 
                 if format_: #wrong format?
                     format_ = None
@@ -161,11 +164,12 @@ class Parse:
         # Since a raw data format is a bit "overoptimized" 
         # we don't know true event sizes, so we need to guess it looking on the data.
         
-        MAX_HDR_LEN = 18 * 4
+        MAX_HDR_LEN = 18 * 4 # [bytes]
         header = self._reader.peek(MAX_HDR_LEN)
         
         if debug:
-            print('header: %s' % binascii.hexlify(header[0:20]) )
+            #print('header: %s' % binascii.hexlify(header[0:20]) )
+            print('header: %s' % header[0:20] )
         
         c_format = [
                 ("fmt", ctypes.c_uint, 4),
@@ -177,15 +181,14 @@ class Parse:
         try:
             ch_fmt, ts_hi = unpack('<HH', header[0:4] )
             ch, fmt = ch_fmt >> 4, (ch_fmt & 0xF)
-            pos = 8 #raw data header position
+            pos = 8 #raw data header position [bytes]
             
             if fmt & 0b1:
                 pos += 7 * 4
                 c_format.extend([
-                        ('npeak', ctypes.c_int16),
                         ('peak', ctypes.c_int16),
-                        ('info', ctypes.c_int8),
-                        ('acc1', ctypes.c_int32, 24),
+                        ('npeak', ctypes.c_int16),
+                        ('acc1_info', ctypes.c_int32),
                         ('acc2', ctypes.c_int32),
                         ('acc3', ctypes.c_int32),
                         ('acc4', ctypes.c_int32),
@@ -251,13 +254,11 @@ class Parse:
             # only once in 17 seconds (on 250 MHz), and assume that MAW is everything between the pos
             # and the next timestamp.
             #
-            if fMAW:
-                #TODO: look up for the next timestamp ( or timestamp + 1)
-                #n_maw=...
-                #~ pos += 4 * n_maw
-                #c_format.append( ('maw', ctypes.c_int32 * n_maw) )
-                pass
-            
+            if fMAW and self.MAW_LENGTH:
+                n_maw=self.MAW_LENGTH
+                pos += 4 * n_maw
+                c_format.append( ('maw', ctypes.c_int32 * n_maw) )
+
         except struct_error:
             # occures than len(header[slice]) is less then expected
             #~ print "eof nohdr" #DELME
@@ -265,9 +266,12 @@ class Parse:
         
         # build a ctypes structure class
         class CtypesStruct(ctypes.LittleEndianStructure):
-            _pack_ = 1 #align bitfields without gaps
+            _pack_ = 1 #align bitfields without gaps in 1 byte packages (look up pack pragma[n])
             _fields_ = c_format
         CtypesStruct.__name__ = 'ch' + str(ch)
+        
+        if debug:
+            print('header size ', ctypes.sizeof(CtypesStruct), ' [bytes]')
         
         return CtypesStruct
     
@@ -288,6 +292,10 @@ class Parse:
         evt.sz = sz
         evt.ts = (evt.ts_hi << 32) + (evt.ts_lo1 <<16) + evt.ts_lo2
         #~ evt.ts = float(evt.ts)/250000000 #ts in seconds (with 250 MHz)
+
+        if hasattr(evt, 'acc1_info'):
+            evt.acc1 = evt.acc1_info & 0xffffff
+            evt.info = evt.acc1_info >> 24
         
         #check 0xE
         if (evt.hdr_raw >> 28) != 0xE: #don't have 0xE flag in raw header
@@ -297,7 +305,7 @@ class Parse:
                 #...but have average header, and flags are 0xA and 0xE
                 pass
             else:
-                raise ValueError('0xE')
+                raise ValueError('no 0xE in hdr_raw')
         
         #check 0 blocks
         for a in ['acc1','acc2','acc3','acc4','acc5','acc6','acc7','acc8',
@@ -384,7 +392,7 @@ def main():
     
     nevents = 0
     
-    outfile.write(b"# <timestamp> <channel> <min(data)> {<data[0..N]>-<min(data)>}\n") #format
+    outfile.write("# <timestamp> <channel> <min(data)> {<data[0..N]>-<min(data)>}\n") #format
     
     for event in p:
         nevents += 1
@@ -397,9 +405,9 @@ def main():
             data_min = min(event.raw)
             data_residuals = (x-data_min for x in event.raw[0:])
             data_residuals_str = ','.join(map(str, data_residuals))
-            outfile.write(b"%d %d %d %s\n" %(event.ts, event.chan, data_min, data_residuals_str ))
+            outfile.write("%d %d %d %s\n" %(event.ts, event.chan, data_min, data_residuals_str ))
         else:
-            outfile.write(b"%d %d\n" %(event.ts, event.chan))
+            outfile.write("ts: %d chan: %d\n" %(event.ts, event.chan))
 
 
         if args.progress and (nevents % 10000 == 0):
